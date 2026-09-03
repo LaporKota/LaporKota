@@ -85,7 +85,7 @@ async function startServer() {
 
       await db.execute({
         sql: 'INSERT INTO users (id, name, email, password, phone, domicile, role) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        args: [userId, name, email, hashedPassword, phone, domicile, 'user'],
+        args: [userId, name, email, hashedPassword, phone ?? null, domicile ?? null, 'user'],
       });
 
       const token = jwt.sign({ id: userId, email, role: 'user' }, JWT_SECRET, { expiresIn: '7d' });
