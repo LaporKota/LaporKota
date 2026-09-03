@@ -1,0 +1,122 @@
+@import "tailwindcss";
+@theme {
+  --color-primary-50: #f0fdfa;
+  --color-primary-100: #ccfbf1;
+  --color-primary-200: #99f6e4;
+  --color-primary-300: #5eead4;
+  --color-primary-400: #2dd4bf;
+  --color-primary-500: #14b8a6;
+  --color-primary-600: #0d9488;
+  --color-primary-700: #0f766e;
+  --color-primary-800: #115e59;
+  --color-primary-900: #134e4a;
+  --color-primary-950: #042f2e;
+}
+
+
+@layer base {
+  :root {
+    --font-headline: 'Space Grotesk', sans-serif;
+    --font-display: 'Space Grotesk', sans-serif;
+    --font-body: 'Inter', sans-serif;
+    --font-label: 'Space Grotesk', sans-serif;
+  }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background-color: #f5f0e8;
+    color: #1a1a1a;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Space Grotesk', sans-serif;
+  }
+}
+
+.font-headline, .font-display, .font-label {
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+.font-body {
+  font-family: 'Inter', sans-serif;
+}
+
+/* Neo-Brutalist hard shadow utilities */
+.brutal-shadow-sm {
+  box-shadow: 2px 2px 0px 0px #1a1a1a;
+}
+
+.brutal-shadow {
+  box-shadow: 4px 4px 0px 0px #1a1a1a;
+}
+
+.brutal-shadow-md {
+  box-shadow: 6px 6px 0px 0px #1a1a1a;
+}
+
+.brutal-shadow-lg {
+  box-shadow: 8px 8px 0px 0px #1a1a1a;
+}
+
+.brutal-shadow-primary {
+  box-shadow: 4px 4px 0px 0px #ffcc00;
+}
+
+.brutal-shadow-tertiary {
+  box-shadow: 4px 4px 0px 0px var(--color-primary-600);
+}
+
+.brutal-border {
+  border: 4px solid #1a1a1a;
+}
+
+.brutal-border-sm {
+  border: 2px solid #1a1a1a;
+}
+
+.brutal-border-md {
+  border: 3px solid #1a1a1a;
+}
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 600, 'GRAD' 0, 'opsz' 24;
+  vertical-align: middle;
+  display: inline-block;
+  line-height: 1;
+}
+
+.material-symbols-outlined.fill {
+  font-variation-settings: 'FILL' 1, 'wght' 700, 'GRAD' 0, 'opsz' 24;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #e8e3da;
+  border: 2px solid #1a1a1a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1a1a1a;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #ffcc00;
+}
+
+
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.animate-marquee {
+  animation: marquee 30s linear infinite;
+}
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
