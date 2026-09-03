@@ -122,11 +122,11 @@ export const GeneralInfoModal: React.FC<GeneralInfoModalProps> = ({ type, onClos
           {type === 'opendata' && (
             <>
               <p>
-                Semua data agregat laporan publik, kecepatan respon dinas, serta status penyelesaian di LaporKota tersedia secara terbuka dengan lisensi Creative Commons (CC-BY 4.0).
+                LaporKota berkomitmen untuk membuka data agregat laporan publik, kecepatan respon dinas, serta status penyelesaian secara terbuka di masa mendatang, dengan lisensi Creative Commons (CC-BY 4.0).
               </p>
               <div className="bg-white border border-slate-200 rounded-lg p-3 text-xs font-mono">
-                API Endpoint: https://api.laporkota.id/v1/reports<br/>
-                Format Dukungan: JSON, GeoJSON, CSV
+                Status: Dalam pengembangan (Roadmap Fase 3)<br/>
+                Format yang direncanakan: JSON, GeoJSON, CSV
               </div>
             </>
           )}
