@@ -140,6 +140,19 @@ export default function App() {
     }
   }, [notifications]);
 
+  // Auto-buka laporan kalau URL mengandung ?report=<id> (dari link hasil "Bagikan")
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sharedReportId = params.get('report');
+    if (sharedReportId && reports.length > 0) {
+      const found = reports.find((r) => r.id === sharedReportId);
+      if (found) {
+        setSelectedReport(found);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reports]);
+
   // Handle Toggle Upvote
   const handleToggleUpvote = (reportId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -613,6 +626,7 @@ export default function App() {
           onToggleUpvote={handleToggleUpvote}
           onUpdateStatus={handleUpdateStatus}
           onAddComment={handleAddComment}
+          currentUser={currentUser}
         />
       )}
 
@@ -650,5 +664,7 @@ export default function App() {
         onClose={() => setGeneralInfoType(null)}
       />
     </div>
+  );
+}
   );
 }
