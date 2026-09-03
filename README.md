@@ -5,7 +5,7 @@
 LaporKota adalah platform pelaporan permasalahan perkotaan yang menghubungkan warga dengan pemangku kepentingan kota secara real-time. Dibangun untuk ITechno Cup 2026, kategori Web Development, dengan subtema *"Smart Sustainable Digital Solution for Inclusive Society"*.
 
 **Live demo:** [laporkota.up.railway.app](https://laporkota.up.railway.app/)
-**Repository:** [github.com/HUNNTE/LaporKota](https://github.com/HUNNTE/LaporKota)
+**Repository:** [github.com/LaporKota/LaporKota](https://github.com/LaporKota/LaporKota)
 
 ---
 
@@ -50,7 +50,7 @@ Proyek ini berfokus pada **SDG 11 (Kota dan Komunitas Berkelanjutan)**, serta me
 
 1. Clone repository ini:
    ```bash
-   git clone https://github.com/HUNNTE/LaporKota.git
+   git clone https://github.com/LaporKota/LaporKota.git
    cd LaporKota
    ```
 
@@ -79,6 +79,18 @@ Proyek ini berfokus pada **SDG 11 (Kota dan Komunitas Berkelanjutan)**, serta me
 4. Jelajahi laporan lain lewat **Peta Interaktif** atau **Explore**, beri dukungan (upvote) dan diskusi.
 5. Buka dashboard **Eco-Pulse** untuk memantau data energi dan sampah kota secara real-time.
 6. Kunjungi **Forum** untuk berdiskusi dan mengusulkan ide inovasi bersama komunitas.
+
+## Akun Demo untuk Testing
+
+Untuk memudahkan juri menguji fitur, tersedia akun admin yang sudah dibuat otomatis (seeded) saat aplikasi pertama kali dijalankan:
+
+| Role | Email | Password |
+|---|---|---|
+| Admin/Petugas | `admin@mail.com` | `12345678` |
+
+Akun admin ini dapat mengakses panel **"Update Status (Mode Petugas)"** pada setiap laporan, yang tidak tersedia untuk akun warga biasa. Untuk mencoba alur warga, silakan daftar akun baru langsung lewat halaman **Daftar Akun Warga**.
+
+> Catatan: password default admin dapat diubah lewat environment variable `ADMIN_DEFAULT_PASSWORD` pada deployment production.
 
 ## Roadmap
 
