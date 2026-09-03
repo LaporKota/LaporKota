@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Report, ReportStatus } from '../types';
+import { Report, ReportStatus, User } from '../types';
 
 interface ReportDetailModalProps {
   report: Report | null;
@@ -7,6 +7,7 @@ interface ReportDetailModalProps {
   onToggleUpvote: (reportId: string, e: React.MouseEvent) => void;
   onUpdateStatus: (reportId: string, newStatus: ReportStatus, note: string) => void;
   onAddComment: (reportId: string, commentText: string) => void;
+  currentUser: User | null;
 }
 
 export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
@@ -15,6 +16,7 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
   onToggleUpvote,
   onUpdateStatus,
   onAddComment,
+  currentUser,
 }) => {
   const [commentInput, setCommentInput] = useState('');
   const [statusUpdateNote, setStatusUpdateNote] = useState('');
@@ -40,7 +42,8 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
   };
 
   const handleCopyLink = () => {
-    navigator.clipboard?.writeText?.(window.location.href);
+    const shareUrl = `${window.location.origin}${window.location.pathname}?report=${report.id}`;
+    navigator.clipboard?.writeText?.(shareUrl);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);
   };
@@ -159,18 +162,20 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
               </button>
             </div>
 
-            {/* Officer / Admin Simulation Button */}
-            <button
-              onClick={() => setShowStatusForm(!showStatusForm)}
-              className="px-3 py-2 bg-primary-600 border border-slate-200 rounded-lg font-label text-xs font-medium shadow-sm hover:bg-primary-700 flex items-center gap-1.5 cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[16px]">admin_panel_settings</span>
-              {showStatusForm ? 'Tutup Panel Petugas' : 'Update Status (Mode Petugas)'}
-            </button>
+            {/* Officer / Admin Panel — hanya tampil untuk akun dengan role admin */}
+            {currentUser?.role === 'admin' && (
+              <button
+                onClick={() => setShowStatusForm(!showStatusForm)}
+                className="px-3 py-2 bg-primary-600 border border-slate-200 rounded-lg font-label text-xs font-medium shadow-sm hover:bg-primary-700 flex items-center gap-1.5 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[16px]">admin_panel_settings</span>
+                {showStatusForm ? 'Tutup Panel Petugas' : 'Update Status (Mode Petugas)'}
+              </button>
+            )}
           </div>
 
-          {/* Status Update Form (Officer Simulation) */}
-          {showStatusForm && (
+          {/* Status Update Form — hanya tampil untuk akun dengan role admin */}
+          {currentUser?.role === 'admin' && showStatusForm && (
             <form onSubmit={handleStatusSubmit} className="bg-yellow-50 border border-slate-200 rounded-xl p-4 flex flex-col gap-3 shadow-md">
               <div className="font-label text-xs font-medium text-slate-900 flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-[18px] text-primary-600">engineering</span>
