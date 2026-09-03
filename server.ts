@@ -28,6 +28,21 @@ const setupDb = async () => {
       role TEXT DEFAULT 'user'
     );
   `);
+
+  // Migration guard: tambahin kolom yang mungkin belum ada
+  // di tabel users yang sudah exist dari deploy sebelumnya.
+  const ensureColumn = async (columnDef: string) => {
+    try {
+      await db.execute(`ALTER TABLE users ADD COLUMN ${columnDef}`);
+    } catch (e: any) {
+      // Abaikan kalau errornya emang karena kolom udah ada
+      if (!e.message?.includes('duplicate column')) {
+        console.error(`Migration warning for "${columnDef}":`, e.message);
+      }
+    }
+  };
+  await ensureColumn('phone TEXT');
+  await ensureColumn('domicile TEXT');
   
     // Seeder for Admin
   try {
@@ -77,6 +92,7 @@ async function startServer() {
       
       res.json({ token, user: { id: userId, name, email, role: 'user', phone, domicile } });
     } catch (error: any) {
+      console.error('Signup error:', error);
       if (error.message.includes('UNIQUE constraint failed')) {
         res.status(400).json({ error: 'Email sudah terdaftar' });
       } else {
