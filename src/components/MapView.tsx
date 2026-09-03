@@ -23,7 +23,7 @@ export const MapView: React.FC<MapViewProps> = ({
 
   // Map Filter & Interaction State
   const [mapStatusFilter, setMapStatusFilter] = useState<'all' | ReportStatus>('all');
-  const [selectedCity, setSelectedCity] = useState<'Jakarta' | 'Bandung' | 'Yogyakarta' | 'Surabaya' | 'Medan'>('Jakarta');
+  const selectedCity: 'Jakarta' = 'Jakarta';
   const [tempMarker, setTempMarker] = useState<{ topPct: number; leftPct: number } | null>(null);
   const [activeHoverReport, setActiveHoverReport] = useState<Report | null>(null);
   const [zoomLevel, setZoomLevel] = useState(1);
@@ -127,6 +127,7 @@ export const MapView: React.FC<MapViewProps> = ({
   // Filter reports on map
   const visibleMapReports = reports.filter((r) => {
     if (mapStatusFilter !== 'all' && r.status !== mapStatusFilter) return false;
+    if (r.city && r.city !== selectedCity) return false;
     return true;
   });
 
@@ -546,22 +547,14 @@ export const MapView: React.FC<MapViewProps> = ({
             </div>
           </div>
 
-          {/* City Switcher */}
+          {/* City Label (locked to Jakarta) */}
           <div className="flex items-center gap-2">
             <span className="font-label text-xs font-medium text-slate-900 hidden sm:inline">
               KOTA:
             </span>
-            <select
-              value={selectedCity}
-              onChange={(e) => setSelectedCity(e.target.value as any)}
-              className="border border-slate-200 rounded-lg bg-white px-2 py-1 font-label text-xs font-bold text-slate-900 shadow-sm cursor-pointer"
-            >
-              <option value="Jakarta">Jakarta</option>
-              <option value="Bandung">Bandung</option>
-              <option value="Yogyakarta">Yogyakarta</option>
-              <option value="Surabaya">Surabaya</option>
-              <option value="Medan">Medan</option>
-            </select>
+            <span className="border border-slate-200 rounded-lg bg-white px-2 py-1 font-label text-xs font-bold text-slate-900 shadow-sm">
+              Jakarta
+            </span>
           </div>
         </div>
 
@@ -733,7 +726,7 @@ export const MapView: React.FC<MapViewProps> = ({
             })}
 
             
-          \n{/* Legend Overlay on Map (Bottom Right) */}
+          {/* Legend Overlay on Map (Bottom Right) */}
             <div className="absolute bottom-3 right-3 bg-slate-50 border border-slate-200 rounded-xl shadow-lg p-3 pointer-events-auto flex flex-col gap-2 z-20">
               <div className="font-label text-xs font-bold text-slate-900 uppercase tracking-wider border-b-[2px] border-slate-200 pb-1">
                 KATEGORI
