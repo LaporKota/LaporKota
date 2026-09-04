@@ -3,14 +3,15 @@ import { CountUpStat } from './motion/CountUpStat';
 import { customEasing, springConfig } from './motion/PageTransition';
 import React, { useState } from 'react';
 import { PORTFOLIO_PROJECTS } from '../data/greenEcoData';
-import { PortfolioCaseStudy } from '../types';
+import { PortfolioCaseStudy, User } from '../types';
 
 interface PortfolioViewProps {
   onOpenReportModal?: () => void;
   onNavigateToEcoPulse?: () => void;
+  user: User | null;
 }
 
-export const PortfolioView: React.FC<PortfolioViewProps> = ({ onNavigateToEcoPulse }) => {
+export const PortfolioView: React.FC<PortfolioViewProps> = ({ onNavigateToEcoPulse, user }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('Semua');
   const [activeProjectModal, setActiveProjectModal] = useState<PortfolioCaseStudy | null>(null);
   const [downloadNotification, setDownloadNotification] = useState<string | null>(null);
@@ -28,6 +29,10 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({ onNavigateToEcoPul
   });
 
   const handleDownloadBlueprint = (project: PortfolioCaseStudy) => {
+    if (!user) {
+      alert('Silakan Masuk atau Daftar untuk mengunduh blueprint teknis.');
+      return;
+    }
     const blueprintData = {
       project_id: project.id,
       title: project.title,
