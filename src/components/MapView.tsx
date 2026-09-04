@@ -570,15 +570,63 @@ export const MapView: React.FC<MapViewProps> = ({
           style={{ touchAction: 'pan-y' }}
           title="Klik pada peta untuk menancapkan pin lokasi laporan baru"
         >
-          {/* Map Base Image (Desaturated High-Contrast Urban Map) */}
+          {/* Map Base (Simple Vector Grid, bukan foto — selalu stretch pas ke container di ukuran layar manapun) */}
           <div
-            className="absolute inset-0 bg-cover bg-center grayscale contrast-125 transition-transform duration-300"
+            className="absolute inset-0 transition-transform duration-300"
             style={{
-              backgroundImage: `url('https://lh3.googleusercontent.com/aida-public/AB6AXuCMcM8sesk3dZJlpwBHowman0QdJSLX68cvdA-rKjlhVQOfzdLnhrh-Lz7AkxpfrpkIHlCgEB38fD3QG4_LjTQbbYpwX1tKLlBxI2xP21NG85nZLJpvM_awWvdzzedsuQ_3H6VlFtKQGfwMkepdI0VD4yPRpF1PCKqOriOtTBJbnbMH3sva1DiTG045U4CC0VeE3uWEPEzxCjMFdjyC0yNWIrAqoqm6sgnzF6ftjCGwx5kR0Ye3FpK1ug')`,
               transform: `scale(${zoomLevel})`,
               transformOrigin: 'center center',
             }}
-          />
+          >
+            <svg
+              viewBox="0 0 100 100"
+              preserveAspectRatio="none"
+              className="w-full h-full"
+            >
+              {/* Base ground color */}
+              <rect x="0" y="0" width="100" height="100" fill="#e8e5dc" />
+
+              {/* City blocks */}
+              <rect x="4" y="6" width="18" height="14" fill="#d8d4c8" />
+              <rect x="26" y="6" width="14" height="22" fill="#d8d4c8" />
+              <rect x="4" y="24" width="18" height="16" fill="#d8d4c8" />
+              <rect x="44" y="6" width="20" height="14" fill="#d8d4c8" />
+              <rect x="68" y="6" width="16" height="20" fill="#d8d4c8" />
+              <rect x="4" y="44" width="14" height="18" fill="#d8d4c8" />
+              <rect x="22" y="44" width="18" height="12" fill="#d8d4c8" />
+              <rect x="44" y="24" width="14" height="20" fill="#d8d4c8" />
+              <rect x="62" y="30" width="18" height="16" fill="#d8d4c8" />
+              <rect x="4" y="66" width="20" height="16" fill="#d8d4c8" />
+              <rect x="28" y="60" width="16" height="20" fill="#d8d4c8" />
+              <rect x="48" y="50" width="18" height="14" fill="#d8d4c8" />
+              <rect x="70" y="52" width="16" height="18" fill="#d8d4c8" />
+              <rect x="6" y="86" width="18" height="10" fill="#d8d4c8" />
+              <rect x="30" y="84" width="20" height="12" fill="#d8d4c8" />
+              <rect x="56" y="70" width="18" height="16" fill="#d8d4c8" />
+              <rect x="78" y="74" width="16" height="14" fill="#d8d4c8" />
+
+              {/* Green space / taman kota */}
+              <rect x="46" y="70" width="12" height="10" rx="1.5" fill="#c3d6c2" />
+              <rect x="70" y="34" width="10" height="8" rx="1.5" fill="#c3d6c2" />
+
+              {/* Water body / sungai */}
+              <path d="M0 52 C 15 50, 25 58, 40 55 C 55 52, 65 60, 100 56" stroke="#b9cdd6" strokeWidth="3" fill="none" />
+
+              {/* Main roads (horizontal) */}
+              <line x1="0" y1="22" x2="100" y2="22" stroke="#f5f0e8" strokeWidth="1.6" />
+              <line x1="0" y1="42" x2="100" y2="42" stroke="#f5f0e8" strokeWidth="1.6" />
+              <line x1="0" y1="64" x2="100" y2="64" stroke="#f5f0e8" strokeWidth="1.6" />
+              <line x1="0" y1="84" x2="100" y2="84" stroke="#f5f0e8" strokeWidth="1.6" />
+
+              {/* Main roads (vertical) */}
+              <line x1="24" y1="0" x2="24" y2="100" stroke="#f5f0e8" strokeWidth="1.6" />
+              <line x1="42" y1="0" x2="42" y2="100" stroke="#f5f0e8" strokeWidth="1.6" />
+              <line x1="66" y1="0" x2="66" y2="100" stroke="#f5f0e8" strokeWidth="1.6" />
+
+              {/* Secondary road (diagonal, jalan utama kota) */}
+              <line x1="0" y1="0" x2="100" y2="70" stroke="#f5f0e8" strokeWidth="1" opacity="0.6" />
+            </svg>
+          </div>
 
           {/* Interactive Map Overlay Area */}
           {/* Static Overlay (Guide Bar & Zoom Controls) */}
