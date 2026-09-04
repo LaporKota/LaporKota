@@ -237,6 +237,16 @@ export default function App() {
   };
 
   // Handle Add New Report from Form
+  // Cek login dulu sebelum buka form daftar relawan
+  const handleOpenVolunteerModal = (report: Report) => {
+    if (!currentUser) {
+      alert('Silakan Masuk atau Daftar untuk mengikuti aksi relawan.');
+      setCurrentTab('login');
+      return;
+    }
+    setSelectedVolunteerReport(report);
+  };
+
   const handleCreateReport = (newReportData: Partial<Report>) => {
     if (!currentUser) {
       alert('Silakan Masuk atau Daftar untuk membuat laporan.');
@@ -477,6 +487,7 @@ export default function App() {
     setCurrentUser(null);
     setCurrentTab('home');
     setIsProfileOpen(false);
+    toast.success('Berhasil keluar!');
   };
 
   return (
@@ -537,7 +548,7 @@ export default function App() {
             onSelectReport={(report) => setSelectedReport(report)}
             onToggleUpvote={handleToggleUpvote}
             onOpenReportModal={() => setCurrentTab('map')}
-            onOpenVolunteerModal={(report) => setSelectedVolunteerReport(report)}
+            onOpenVolunteerModal={handleOpenVolunteerModal}
             onNavigateToReports={() => setCurrentTab('reports')}
             onNavigateToMap={() => setCurrentTab('map')}
             onNavigateToEcoPulse={() => setCurrentTab('ecopulse')}
@@ -553,7 +564,7 @@ export default function App() {
             onSelectReport={(report) => setSelectedReport(report)}
             onToggleUpvote={handleToggleUpvote}
             onOpenReportModal={() => setCurrentTab('map')}
-            onOpenVolunteerModal={(report) => setSelectedVolunteerReport(report)}
+            onOpenVolunteerModal={handleOpenVolunteerModal}
             onNavigateToEcoPulse={() => setCurrentTab('ecopulse')}
             onNavigateToForum={() => setCurrentTab('forum')}
             onNavigateToPortfolio={() => setCurrentTab('portfolio')}
