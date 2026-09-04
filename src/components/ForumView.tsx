@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ForumTopic, ForumCategory, ForumReply, User } from '../types';
-import { INITIAL_FORUM_TOPICS } from '../data/greenEcoData';
 
 interface ForumViewProps {
   onOpenReportModal?: () => void;
@@ -8,15 +7,23 @@ interface ForumViewProps {
 }
 
 export const ForumView: React.FC<ForumViewProps> = ({ onOpenReportModal, user }) => {
-  const [topics, setTopics] = useState<ForumTopic[]>(() => {
-    try {
-      const saved = localStorage.getItem('laporkota_forum');
-      if (saved) return JSON.parse(saved);
-    } catch {
-      // ignore
-    }
-    return INITIAL_FORUM_TOPICS;
-  });
+  const [topics, setTopics] = useState<ForumTopic[]>([]);
+
+  useEffect(() => {
+    fetch('/api/forum/topics')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.topics) setTopics(data.topics);
+      })
+      .catch((err) => console.error('Gagal memuat diskusi forum:', err));
+  }, []);
+
+  const authHeaders = (): Record<string, string> => {
+    const token = localStorage.getItem('token');
+    return token
+      ? { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+      : { 'Content-Type': 'application/json' };
+  };
 
   const [selectedCategory, setSelectedCategory] = useState<ForumCategory>('Semua');
   const [searchQuery, setSearchQuery] = useState('');
@@ -33,14 +40,10 @@ export const ForumView: React.FC<ForumViewProps> = ({ onOpenReportModal, user })
   // Reply Form State
   const [replyInput, setReplyInput] = useState('');
 
-  // Persist to localStorage
-  const saveTopics = (updated: ForumTopic[]) => {
-    setTopics(updated);
-    try {
-      localStorage.setItem('laporkota_forum', JSON.stringify(updated));
-    } catch {
-      // ignore
-    }
+  // Helper: replace 1 topic di state dan di modal aktif dengan versi terbaru dari server
+  const applyUpdatedTopic = (updated: ForumTopic) => {
+    setTopics((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+    setActiveTopicForModal((prev) => (prev && prev.id === updated.id ? updated : prev));
   };
 
   // Upvote Topic
@@ -50,30 +53,12 @@ export const ForumView: React.FC<ForumViewProps> = ({ onOpenReportModal, user })
       alert('Silakan Masuk atau Daftar untuk mendukung diskusi ini.');
       return;
     }
-    const updated = topics.map((t) => {
-      if (t.id === topicId) {
-        const isUpvoted = !t.hasUpvoted;
-        return {
-          ...t,
-          hasUpvoted: isUpvoted,
-          upvotes: isUpvoted ? t.upvotes + 1 : Math.max(0, t.upvotes - 1),
-        };
-      }
-      return t;
-    });
-    saveTopics(updated);
-
-    if (activeTopicForModal && activeTopicForModal.id === topicId) {
-      setActiveTopicForModal((prev) => {
-        if (!prev) return null;
-        const isUpvoted = !prev.hasUpvoted;
-        return {
-          ...prev,
-          hasUpvoted: isUpvoted,
-          upvotes: isUpvoted ? prev.upvotes + 1 : Math.max(0, prev.upvotes - 1),
-        };
-      });
-    }
+    fetch(`/api/forum/topics/${topicId}/upvote`, { method: 'POST', headers: authHeaders() })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.topic) applyUpdatedTopic(data.topic);
+      })
+      .catch(() => alert('Terjadi kesalahan jaringan'));
   };
 
   // Upvote Reply
@@ -82,42 +67,12 @@ export const ForumView: React.FC<ForumViewProps> = ({ onOpenReportModal, user })
       alert('Silakan Masuk atau Daftar untuk mendukung tanggapan ini.');
       return;
     }
-    const updated = topics.map((t) => {
-      if (t.id === topicId) {
-        const updatedReplies = t.replies.map((r) => {
-          if (r.id === replyId) {
-            const isUpvoted = !r.hasUpvoted;
-            return {
-              ...r,
-              hasUpvoted: isUpvoted,
-              upvotes: isUpvoted ? r.upvotes + 1 : Math.max(0, r.upvotes - 1),
-            };
-          }
-          return r;
-        });
-        return { ...t, replies: updatedReplies };
-      }
-      return t;
-    });
-    saveTopics(updated);
-
-    if (activeTopicForModal && activeTopicForModal.id === topicId) {
-      setActiveTopicForModal((prev) => {
-        if (!prev) return null;
-        const updatedReplies = prev.replies.map((r) => {
-          if (r.id === replyId) {
-            const isUpvoted = !r.hasUpvoted;
-            return {
-              ...r,
-              hasUpvoted: isUpvoted,
-              upvotes: isUpvoted ? r.upvotes + 1 : Math.max(0, r.upvotes - 1),
-            };
-          }
-          return r;
-        });
-        return { ...prev, replies: updatedReplies };
-      });
-    }
+    fetch(`/api/forum/topics/${topicId}/replies/${replyId}/upvote`, { method: 'POST', headers: authHeaders() })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.topic) applyUpdatedTopic(data.topic);
+      })
+      .catch(() => alert('Terjadi kesalahan jaringan'));
   };
 
   // Create New Topic
@@ -141,8 +96,7 @@ export const ForumView: React.FC<ForumViewProps> = ({ onOpenReportModal, user })
       return name.slice(0, 2).toUpperCase();
     };
 
-    const newTopic: ForumTopic = {
-      id: `forum-${Date.now()}`,
+    const draftTopic = {
       title: newTitle.trim(),
       category: newCategory,
       author: user.name,
@@ -152,19 +106,27 @@ export const ForumView: React.FC<ForumViewProps> = ({ onOpenReportModal, user })
       content: newContent.trim(),
       tags: tags.length > 0 ? tags : ['EcoConnect', 'SDG11'],
       createdAt: 'Baru saja',
-      upvotes: 1,
-      hasUpvoted: true,
-      repliesCount: 0,
-      replies: [],
       sdgGoal: newSdgGoal,
     };
 
-    const updated = [newTopic, ...topics];
-    saveTopics(updated);
-    setIsNewTopicModalOpen(false);
-    setNewTitle('');
-    setNewContent('');
-    setNewTagsInput('');
+    fetch('/api/forum/topics', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(draftTopic),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.topic) {
+          alert(data.error || 'Gagal membuat diskusi');
+          return;
+        }
+        setTopics((prev) => [data.topic, ...prev]);
+        setIsNewTopicModalOpen(false);
+        setNewTitle('');
+        setNewContent('');
+        setNewTagsInput('');
+      })
+      .catch(() => alert('Terjadi kesalahan jaringan'));
   };
 
   // Add Reply
@@ -177,45 +139,21 @@ export const ForumView: React.FC<ForumViewProps> = ({ onOpenReportModal, user })
       return;
     }
 
-    const getInitials = (name: string) => {
-      const parts = name.trim().split(' ');
-      if (parts.length > 1) return (parts[0][0] + parts[1][0]).toUpperCase();
-      return name.slice(0, 2).toUpperCase();
-    };
-
-    const newReply: ForumReply = {
-      id: `rep-f-${Date.now()}`,
-      author: user.name,
-      role: user.role === 'admin' ? 'Admin' : 'Warga / Inisiator',
-      isChampion: user.role === 'admin',
-      avatarInitials: getInitials(user.name),
-      timestamp: 'Baru saja',
-      content: replyInput.trim(),
-      upvotes: 0,
-      hasUpvoted: false,
-    };
-
-    const updated = topics.map((t) => {
-      if (t.id === activeTopicForModal.id) {
-        return {
-          ...t,
-          repliesCount: t.repliesCount + 1,
-          replies: [...t.replies, newReply],
-        };
-      }
-      return t;
-    });
-
-    saveTopics(updated);
-    setActiveTopicForModal((prev) => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        repliesCount: prev.repliesCount + 1,
-        replies: [...prev.replies, newReply],
-      };
-    });
-    setReplyInput('');
+    fetch(`/api/forum/topics/${activeTopicForModal.id}/reply`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ content: replyInput.trim() }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.topic) {
+          alert(data.error || 'Gagal mengirim balasan');
+          return;
+        }
+        applyUpdatedTopic(data.topic);
+        setReplyInput('');
+      })
+      .catch(() => alert('Terjadi kesalahan jaringan'));
   };
 
   // Filtered Topics
