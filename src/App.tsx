@@ -8,7 +8,7 @@ import AOS from 'aos';
 import 'aos/dist/aos.css';
 import { Toaster, toast } from 'sonner';
 import { Report, ReportStatus, CivicNotification, User } from './types';
-import { INITIAL_REPORTS, INITIAL_NOTIFICATIONS } from './data/initialReports';
+import { INITIAL_NOTIFICATIONS } from './data/initialReports';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { AnimatePresence } from 'motion/react';
@@ -52,18 +52,27 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [currentTab]);
 
-  // Reports Data State
-  const [reports, setReports] = useState<Report[]>(() => {
-    try {
-      const saved = localStorage.getItem('laporkota_reports');
-      if (saved) {
-        return JSON.parse(saved);
-      }
-    } catch {
-      // ignore
-    }
-    return INITIAL_REPORTS;
-  });
+  // Reports Data State — di-fetch dari server (Turso DB), bukan localStorage lagi
+  const [reports, setReports] = useState<Report[]>([]);
+  const [isReportsLoading, setIsReportsLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/reports')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.reports) setReports(data.reports);
+      })
+      .catch((err) => console.error('Gagal memuat laporan:', err))
+      .finally(() => setIsReportsLoading(false));
+  }, []);
+
+  // Helper: pasang header Authorization dari token yang tersimpan
+  const authHeaders = (): Record<string, string> => {
+    const token = localStorage.getItem('token');
+    return token
+      ? { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+      : { 'Content-Type': 'application/json' };
+  };
 
   // Notifications State
   const [notifications, setNotifications] = useState<CivicNotification[]>(() => {
@@ -123,15 +132,6 @@ export default function App() {
     } catch { }
   }, [users]);
 
-  // Sync to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem('laporkota_reports', JSON.stringify(reports));
-    } catch {
-      // ignore
-    }
-  }, [reports]);
-
   useEffect(() => {
     try {
       localStorage.setItem('laporkota_notifs', JSON.stringify(notifications));
@@ -154,6 +154,12 @@ export default function App() {
   }, [reports]);
 
   // Handle Toggle Upvote
+  // Helper: replace 1 report di state `reports` & `selectedReport` dengan versi terbaru dari server
+  const applyUpdatedReport = (updated: Report) => {
+    setReports((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+    setSelectedReport((prev) => (prev && prev.id === updated.id ? updated : prev));
+  };
+
   const handleToggleUpvote = (reportId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!currentUser) {
@@ -162,78 +168,41 @@ export default function App() {
       return;
     }
 
-    setReports((prev) =>
-      prev.map((r) => {
-        if (r.id === reportId) {
-          const upvoters = r.upvotedBy || [];
-          const isUpvoted = upvoters.includes(currentUser.id);
-          const newUpvoters = isUpvoted ? upvoters.filter(id => id !== currentUser.id) : [...upvoters, currentUser.id];
-          const newUpvotes = isUpvoted ? Math.max(0, r.upvotes - 1) : r.upvotes + 1;
-          return {
-            ...r,
-            hasUpvoted: !isUpvoted, // Deprecated backwards compat
-            upvotedBy: newUpvoters,
-            upvotes: newUpvotes,
-          };
-        }
-        return r;
+    fetch(`/api/reports/${reportId}/upvote`, { method: 'POST', headers: authHeaders() })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.report) applyUpdatedReport(data.report);
+        else toast.error(data.error || 'Gagal memproses dukungan');
       })
-    );
-
-    // If modal is open for this report, update it as well
-    if (selectedReport && selectedReport.id === reportId) {
-      setSelectedReport((prev) => {
-        if (!prev) return null;
-        const upvoters = prev.upvotedBy || [];
-        const isUpvoted = upvoters.includes(currentUser.id);
-        const newUpvoters = isUpvoted ? upvoters.filter(id => id !== currentUser.id) : [...upvoters, currentUser.id];
-        return {
-          ...prev,
-          hasUpvoted: !isUpvoted,
-          upvotedBy: newUpvoters,
-          upvotes: isUpvoted ? Math.max(0, prev.upvotes - 1) : prev.upvotes + 1,
-        };
-      });
-    }
+      .catch(() => toast.error('Terjadi kesalahan jaringan'));
   };
 
   // Handle Volunteer Sign Up Confirmation
   const handleConfirmVolunteer = (reportId: string, volunteerData: { name: string; phone: string; role: string }) => {
-    setReports((prev) =>
-      prev.map((r) => {
-        if (r.id === reportId) {
-          return {
-            ...r,
-            userJoinedVolunteer: true,
-            volunteerCount: (r.volunteerCount || 0) + 1,
-            comments: [
-              ...r.comments,
-              {
-                id: `c-${Date.now()}`,
-                userName: `${volunteerData.name} (Relawan Terdaftar)`,
-                timestamp: 'Baru saja',
-                content: `Saya siap bergabung dalam aksi relawan sebagai ${volunteerData.role}! Mari gotong royong bersihkan area ini.`,
-              }
-            ]
-          };
+    fetch(`/api/reports/${reportId}/volunteer`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ name: volunteerData.name, role: volunteerData.role }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.report) {
+          toast.error(data.error || 'Gagal mendaftar relawan');
+          return;
         }
-        return r;
+        applyUpdatedReport(data.report);
+        const notif: CivicNotification = {
+          id: `notif-${Date.now()}`,
+          title: 'Konfirmasi Aksi Relawan',
+          message: `Terima kasih ${volunteerData.name}! Anda telah terdaftar dalam aksi gotong royong "${data.report.title}".`,
+          timeAgo: 'Baru saja',
+          isRead: false,
+          reportId: data.report.id,
+          type: 'system',
+        };
+        setNotifications((prev) => [notif, ...prev]);
       })
-    );
-
-    const targetRep = reports.find((r) => r.id === reportId);
-    if (targetRep) {
-      const notif: CivicNotification = {
-        id: `notif-${Date.now()}`,
-        title: 'Konfirmasi Aksi Relawan',
-        message: `Terima kasih ${volunteerData.name}! Anda telah terdaftar dalam aksi gotong royong "${targetRep.title}".`,
-        timeAgo: 'Baru saja',
-        isRead: false,
-        reportId: targetRep.id,
-        type: 'system',
-      };
-      setNotifications((prev) => [notif, ...prev]);
-    }
+      .catch(() => toast.error('Terjadi kesalahan jaringan'));
   };
 
   // Handle Add New Report from Form
@@ -254,9 +223,7 @@ export default function App() {
       return;
     }
 
-    const newId = `rep-${Date.now().toString().slice(-4)}`;
-    const fullReport: Report = {
-      id: newId,
+    const draftReport: Partial<Report> = {
       title: newReportData.title || 'Laporan Warga Baru',
       category: newReportData.category || 'fasilitas',
       categoryLabel: newReportData.categoryLabel || 'Fasilitas Umum',
@@ -274,11 +241,12 @@ export default function App() {
       upvotes: 1,
       hasUpvoted: true,
       upvotedBy: [currentUser.id],
-      userId: currentUser.id,
       volunteerCount: 1,
       userJoinedVolunteer: false,
       volunteerActionDate: 'Sabtu Mendatang (07:30 WIB)',
-      imageUrl: newReportData.imageUrl || 'https://lh3.googleusercontent.com/aida-public/AB6AXuCWr_lkpfQCI44JNAXYqVGOligdK6hKpa2qXvASY05dcYN1CuURLlcUnFmmexUoZNL1WR18HuYH97K4vYIPYyMgVlDEEmKAhGudGDu_O2e0D1fysBrtk7Q0JA9obSrTY2uTT8-khG8Cs_4t2B60wEMSLQGflPbV0kUVY06PUNY8ieDKTuSaS8_eYKyXIiP2RA_whGxHmUM88yCSFPM-R3giOEPjuIImwxerYR6wOASYEZWLm1Mfe5G_XQ',
+      imageUrl:
+        newReportData.imageUrl ||
+        'https://lh3.googleusercontent.com/aida-public/AB6AXuCWr_lkpfQCI44JNAXYqVGOligdK6hKpa2qXvASY05dcYN1CuURLlcUnFmmexUoZNL1WR18HuYH97K4vYIPYyMgVlDEEmKAhGudGDu_O2e0D1fysBrtk7Q0JA9obSrTY2uTT8-khG8Cs_4t2B60wEMSLQGflPbV0kUVY06PUNY8ieDKTuSaS8_eYKyXIiP2RA_whGxHmUM88yCSFPM-R3giOEPjuIImwxerYR6wOASYEZWLm1Mfe5G_XQ',
       reporterName: currentUser.name,
       departmentAssigned: 'Dinas Terkait (Disposisi Otomatis)',
       priority: 'Tinggi',
@@ -295,82 +263,58 @@ export default function App() {
       comments: [],
     };
 
-    setReports((prev) => [fullReport, ...prev]);
-
-    // Add notification
-    const newNotif: CivicNotification = {
-      id: `notif-${Date.now()}`,
-      title: 'Laporan Baru Terkirim',
-      message: `Laporan "${fullReport.title}" telah dipublikasikan di peta LaporKota.`,
-      timeAgo: 'Baru saja',
-      isRead: false,
-      reportId: fullReport.id,
-      type: 'system',
-    };
-    setNotifications((prev) => [newNotif, ...prev]);
+    fetch('/api/reports', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(draftReport),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.report) {
+          toast.error(data.error || 'Gagal membuat laporan');
+          return;
+        }
+        setReports((prev) => [data.report, ...prev]);
+        const newNotif: CivicNotification = {
+          id: `notif-${Date.now()}`,
+          title: 'Laporan Baru Terkirim',
+          message: `Laporan "${data.report.title}" telah dipublikasikan di peta LaporKota.`,
+          timeAgo: 'Baru saja',
+          isRead: false,
+          reportId: data.report.id,
+          type: 'system',
+        };
+        setNotifications((prev) => [newNotif, ...prev]);
+      })
+      .catch(() => toast.error('Terjadi kesalahan jaringan'));
   };
 
-  // Handle Status Update (e.g. Petugas mode)
+  // Handle Status Update (e.g. Petugas mode) — hanya admin, divalidasi juga di server
   const handleUpdateStatus = (reportId: string, newStatus: ReportStatus, note: string) => {
-    const authorName = currentUser ? currentUser.name : 'Petugas Tindak Lanjut Lapangan';
-    const authorRole = currentUser?.role === 'admin' ? 'Dinas / Satgas Terkait' : 'Warga';
-
-    setReports((prev) =>
-      prev.map((r) => {
-        if (r.id === reportId) {
-          const newUpdate = {
-            id: `upd-${Date.now()}`,
-            date: 'Baru saja',
-            author: authorName,
-            role: authorRole,
-            message: note,
-            statusChange: newStatus,
-          };
-          return {
-            ...r,
-            status: newStatus,
-            updates: [newUpdate, ...r.updates],
-          };
+    fetch(`/api/reports/${reportId}/status`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ status: newStatus, note }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.report) {
+          toast.error(data.error || 'Gagal memperbarui status');
+          return;
         }
-        return r;
+        applyUpdatedReport(data.report);
+        const notif: CivicNotification = {
+          id: `notif-${Date.now()}`,
+          title: `Status Laporan Diperbarui: ${newStatus.toUpperCase()}`,
+          message: `Laporan "${data.report.title}" telah diperbarui menjadi ${newStatus.toUpperCase()}. Catatan: "${note}"`,
+          timeAgo: 'Baru saja',
+          isRead: false,
+          reportId: data.report.id,
+          type: 'status',
+        };
+        setNotifications((prev) => [notif, ...prev]);
       })
-    );
-
-    if (selectedReport && selectedReport.id === reportId) {
-      setSelectedReport((prev) => {
-        if (!prev) return null;
-        const authorName = currentUser ? currentUser.name : 'Petugas Tindak Lanjut Lapangan';
-        const authorRole = currentUser?.role === 'admin' ? 'Dinas / Satgas Terkait' : 'Warga';
-        const newUpdate = {
-          id: `upd-${Date.now()}`,
-          date: 'Baru saja',
-          author: authorName,
-          role: authorRole,
-          message: note,
-          statusChange: newStatus,
-        };
-        return {
-          ...prev,
-          status: newStatus,
-          updates: [newUpdate, ...prev.updates],
-        };
-      });
-    }
-
-    // Add notification
-    const updatedRep = reports.find((r) => r.id === reportId);
-    if (updatedRep) {
-      const notif: CivicNotification = {
-        id: `notif-${Date.now()}`,
-        title: `Status Laporan Diperbarui: ${newStatus.toUpperCase()}`,
-        message: `Laporan "${updatedRep.title}" telah diperbarui menjadi ${newStatus.toUpperCase()}. Catatan: "${note}"`,
-        timeAgo: 'Baru saja',
-        isRead: false,
-        reportId: updatedRep.id,
-        type: 'status',
-      };
-      setNotifications((prev) => [notif, ...prev]);
-    }
+      .catch(() => toast.error('Terjadi kesalahan jaringan'));
   };
 
   // Handle Add Comment
@@ -381,35 +325,17 @@ export default function App() {
       return;
     }
 
-    const newComment = {
-      id: `c-${Date.now()}`,
-      userName: currentUser.name,
-      timestamp: 'Baru saja',
-      content: commentText,
-      isOfficial: currentUser.role === 'admin'
-    };
-
-    setReports((prev) =>
-      prev.map((r) => {
-        if (r.id === reportId) {
-          return {
-            ...r,
-            comments: [...r.comments, newComment],
-          };
-        }
-        return r;
+    fetch(`/api/reports/${reportId}/comment`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ content: commentText, userName: currentUser.name }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.report) applyUpdatedReport(data.report);
+        else toast.error(data.error || 'Gagal mengirim komentar');
       })
-    );
-
-    if (selectedReport && selectedReport.id === reportId) {
-      setSelectedReport((prev) => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          comments: [...prev.comments, newComment],
-        };
-      });
-    }
+      .catch(() => toast.error('Terjadi kesalahan jaringan'));
   };
 
   const handleSelectNotification = (reportId: string) => {
