@@ -232,6 +232,17 @@ export const ForumView: React.FC<ForumViewProps> = ({ onOpenReportModal, user })
     'Advokasi & Kebijakan',
   ];
 
+  const getCategoryColor = (category: string) => {
+    const map: Record<string, string> = {
+      'Energi Terbarukan': 'bg-amber-100 text-amber-900',
+      'Zero Waste & IoT': 'bg-primary-100 text-primary-900',
+      'Urban Farming & Hijau': 'bg-green-100 text-green-900',
+      'Mobilitas Bersih': 'bg-sky-100 text-sky-900',
+      'Advokasi & Kebijakan': 'bg-slate-200 text-slate-900',
+    };
+    return map[category] || 'bg-slate-100 text-slate-900';
+  };
+
   return (
     <div className="flex-grow w-full max-w-[1280px] mx-auto px-4 sm:px-6 py-8 flex flex-col gap-8">
       {/* Header */}
@@ -306,7 +317,7 @@ export const ForumView: React.FC<ForumViewProps> = ({ onOpenReportModal, user })
               key={topic.id}
               onClick={() => setActiveTopicForModal(topic)}
               className={`bg-white border border-slate-200 rounded-xl p-5 sm:p-6 shadow-md hover:shadow-lg hover:translate-y-[-2px] hover:shadow-lg transition-all cursor-pointer flex flex-col gap-4 ${
-                topic.isPinned ? 'border-t-8 border-t-[#ffcc00]' : ''
+                topic.isPinned ? 'border-t-8 border-t-amber-500' : ''
               }`}
             >
               <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
@@ -332,7 +343,7 @@ export const ForumView: React.FC<ForumViewProps> = ({ onOpenReportModal, user })
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className="bg-rose-50 text-slate-900 border border-slate-200 px-2 py-0.5 text-[10px] font-label font-bold uppercase">
+                  <span className={`${getCategoryColor(topic.category)} border border-slate-200 px-2 py-0.5 text-[10px] font-label font-bold uppercase`}>
                     {topic.category}
                   </span>
                   <span className="bg-slate-100 text-slate-900 border border-slate-200 px-2 py-0.5 text-[10px] font-label font-bold uppercase">
