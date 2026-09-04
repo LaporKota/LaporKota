@@ -566,7 +566,7 @@ export const MapView: React.FC<MapViewProps> = ({
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
-          className="flex-grow bg-slate-100 border border-slate-200 rounded-xl shadow-lg overflow-hidden relative min-h-[540px] select-none cursor-crosshair touch-pan-y"
+          className="flex-grow bg-slate-100 border border-slate-200 rounded-xl shadow-lg overflow-hidden relative w-full aspect-[4/3] max-h-[640px] select-none cursor-crosshair touch-pan-y"
           style={{ touchAction: 'pan-y' }}
           title="Klik pada peta untuk menancapkan pin lokasi laporan baru"
         >
