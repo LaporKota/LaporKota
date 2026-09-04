@@ -590,6 +590,7 @@ export default function App() {
           <PortfolioView
             onOpenReportModal={() => setCurrentTab('map')}
             onNavigateToEcoPulse={() => setCurrentTab('ecopulse')}
+            user={currentUser}
           />
         )}
 
