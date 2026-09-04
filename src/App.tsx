@@ -614,6 +614,7 @@ export default function App() {
           <ImpactView
             reports={reports}
             onOpenReportModal={() => setCurrentTab('map')}
+            user={currentUser}
           />
         )}
       
