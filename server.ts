@@ -4,6 +4,8 @@ import { createServer as createViteServer } from 'vite';
 import { createClient } from '@libsql/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { INITIAL_REPORTS } from './src/data/initialReports';
+import { INITIAL_FORUM_TOPICS } from './src/data/greenEcoData';
 
 // Initialize SQLite DB
 const db = createClient({
@@ -43,6 +45,25 @@ const setupDb = async () => {
   };
   await ensureColumn('phone TEXT');
   await ensureColumn('domicile TEXT');
+
+  // Tabel untuk laporan warga (Report) — disimpan sebagai JSON blob
+  // biar gampang reuse struktur data yang sama persis kayak di frontend
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS reports (
+      id TEXT PRIMARY KEY,
+      data TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+  `);
+
+  // Tabel untuk diskusi forum (ForumTopic) — sama, disimpan sebagai JSON blob
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS forum_topics (
+      id TEXT PRIMARY KEY,
+      data TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+  `);
   
     // Seeder for Admin
   try {
@@ -63,11 +84,80 @@ const setupDb = async () => {
   } catch (error) {
     console.error("Failed to seed admin account:", error);
   }
+
+  // Seeder untuk reports & forum topics (cuma jalan sekali, kalau tabel masih kosong)
+  try {
+    const reportsCheck = await db.execute('SELECT COUNT(*) as cnt FROM reports');
+    const reportsCount = Number(reportsCheck.rows[0]?.cnt || 0);
+    if (reportsCount === 0) {
+      for (const report of INITIAL_REPORTS) {
+        await db.execute({
+          sql: 'INSERT INTO reports (id, data, created_at) VALUES (?, ?, ?)',
+          args: [report.id, JSON.stringify(report), report.timestamp || Date.now()],
+        });
+      }
+      console.log(`Seeded ${INITIAL_REPORTS.length} initial reports`);
+    }
+  } catch (error) {
+    console.error('Failed to seed reports:', error);
+  }
+
+  try {
+    const topicsCheck = await db.execute('SELECT COUNT(*) as cnt FROM forum_topics');
+    const topicsCount = Number(topicsCheck.rows[0]?.cnt || 0);
+    if (topicsCount === 0) {
+      let i = 0;
+      for (const topic of INITIAL_FORUM_TOPICS) {
+        i++;
+        await db.execute({
+          sql: 'INSERT INTO forum_topics (id, data, created_at) VALUES (?, ?, ?)',
+          args: [topic.id, JSON.stringify(topic), Date.now() - i * 1000],
+        });
+      }
+      console.log(`Seeded ${INITIAL_FORUM_TOPICS.length} initial forum topics`);
+    }
+  } catch (error) {
+    console.error('Failed to seed forum topics:', error);
+  }
   isDbSetup = true;
 };
 setupDb();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'lapor-kota-super-secret-key-2026';
+
+// Middleware: verifikasi JWT, isi req.user kalau valid.
+// requireAuth() mewajibkan login, optionalAuth() cuma nambahin info user kalau ada token.
+function verifyToken(req: any): { id: string; email: string; role: string } | null {
+  const header = req.headers['authorization'];
+  if (!header || !header.startsWith('Bearer ')) return null;
+  const token = header.slice(7);
+  try {
+    return jwt.verify(token, JWT_SECRET) as { id: string; email: string; role: string };
+  } catch {
+    return null;
+  }
+}
+
+function requireAuth(req: any, res: any, next: any) {
+  const user = verifyToken(req);
+  if (!user) {
+    return res.status(401).json({ error: 'Silakan login terlebih dahulu.' });
+  }
+  req.user = user;
+  next();
+}
+
+function requireAdmin(req: any, res: any, next: any) {
+  const user = verifyToken(req);
+  if (!user) {
+    return res.status(401).json({ error: 'Silakan login terlebih dahulu.' });
+  }
+  if (user.role !== 'admin') {
+    return res.status(403).json({ error: 'Hanya petugas/admin yang dapat melakukan aksi ini.' });
+  }
+  req.user = user;
+  next();
+}
 
 async function startServer() {
   const app = express();
@@ -139,6 +229,263 @@ async function startServer() {
         } 
       });
     } catch (error) {
+      res.status(500).json({ error: 'Terjadi kesalahan pada server' });
+    }
+  });
+
+  // ===================== REPORTS API =====================
+
+  app.get('/api/reports', async (req, res) => {
+    await setupDb();
+    try {
+      const result = await db.execute('SELECT data FROM reports ORDER BY created_at DESC');
+      const reports = result.rows.map((row: any) => JSON.parse(row.data as string));
+      res.json({ reports });
+    } catch (error) {
+      console.error('Get reports error:', error);
+      res.status(500).json({ error: 'Terjadi kesalahan pada server' });
+    }
+  });
+
+  app.post('/api/reports', requireAuth, async (req: any, res) => {
+    await setupDb();
+    try {
+      const id = 'rep-' + Date.now().toString().slice(-6);
+      const report = { ...req.body, id, userId: req.user.id };
+      await db.execute({
+        sql: 'INSERT INTO reports (id, data, created_at) VALUES (?, ?, ?)',
+        args: [id, JSON.stringify(report), report.timestamp || Date.now()],
+      });
+      res.json({ report });
+    } catch (error) {
+      console.error('Create report error:', error);
+      res.status(500).json({ error: 'Terjadi kesalahan pada server' });
+    }
+  });
+
+  // Helper: ambil 1 report dari DB, return null kalau gak ketemu
+  const getReportById = async (id: string) => {
+    const result = await db.execute({ sql: 'SELECT data FROM reports WHERE id = ?', args: [id] });
+    if (result.rows.length === 0) return null;
+    return JSON.parse(result.rows[0].data as string);
+  };
+  const saveReport = async (id: string, report: any) => {
+    await db.execute({ sql: 'UPDATE reports SET data = ? WHERE id = ?', args: [JSON.stringify(report), id] });
+  };
+
+  app.post('/api/reports/:id/upvote', requireAuth, async (req: any, res) => {
+    await setupDb();
+    try {
+      const report = await getReportById(req.params.id);
+      if (!report) return res.status(404).json({ error: 'Laporan tidak ditemukan' });
+
+      const upvotedBy: string[] = report.upvotedBy || [];
+      const idx = upvotedBy.indexOf(req.user.id);
+      if (idx === -1) {
+        upvotedBy.push(req.user.id);
+      } else {
+        upvotedBy.splice(idx, 1);
+      }
+      report.upvotedBy = upvotedBy;
+      report.upvotes = upvotedBy.length;
+      await saveReport(req.params.id, report);
+      res.json({ report });
+    } catch (error) {
+      console.error('Upvote report error:', error);
+      res.status(500).json({ error: 'Terjadi kesalahan pada server' });
+    }
+  });
+
+  app.post('/api/reports/:id/status', requireAdmin, async (req: any, res) => {
+    await setupDb();
+    try {
+      const { status, note } = req.body;
+      const report = await getReportById(req.params.id);
+      if (!report) return res.status(404).json({ error: 'Laporan tidak ditemukan' });
+
+      report.status = status;
+      report.updates = [
+        ...(report.updates || []),
+        {
+          id: 'upd-' + Date.now(),
+          date: 'Baru saja',
+          author: req.user.email,
+          role: 'Petugas',
+          message: note || `Status diubah menjadi ${status}`,
+          statusChange: status,
+        },
+      ];
+      await saveReport(req.params.id, report);
+      res.json({ report });
+    } catch (error) {
+      console.error('Update status error:', error);
+      res.status(500).json({ error: 'Terjadi kesalahan pada server' });
+    }
+  });
+
+  app.post('/api/reports/:id/comment', requireAuth, async (req: any, res) => {
+    await setupDb();
+    try {
+      const { content, userName } = req.body;
+      const report = await getReportById(req.params.id);
+      if (!report) return res.status(404).json({ error: 'Laporan tidak ditemukan' });
+
+      report.comments = [
+        ...(report.comments || []),
+        {
+          id: 'c-' + Date.now(),
+          userName: userName || req.user.email,
+          timestamp: 'Baru saja',
+          content,
+          isOfficial: req.user.role === 'admin',
+        },
+      ];
+      await saveReport(req.params.id, report);
+      res.json({ report });
+    } catch (error) {
+      console.error('Add comment error:', error);
+      res.status(500).json({ error: 'Terjadi kesalahan pada server' });
+    }
+  });
+
+  app.post('/api/reports/:id/volunteer', requireAuth, async (req: any, res) => {
+    await setupDb();
+    try {
+      const { name, role } = req.body || {};
+      const report = await getReportById(req.params.id);
+      if (!report) return res.status(404).json({ error: 'Laporan tidak ditemukan' });
+
+      report.volunteerCount = (report.volunteerCount || 0) + 1;
+      report.userJoinedVolunteer = true;
+      if (name && role) {
+        report.comments = [
+          ...(report.comments || []),
+          {
+            id: 'c-' + Date.now(),
+            userName: `${name} (Relawan Terdaftar)`,
+            timestamp: 'Baru saja',
+            content: `Saya siap bergabung dalam aksi relawan sebagai ${role}! Mari gotong royong bersihkan area ini.`,
+          },
+        ];
+      }
+      await saveReport(req.params.id, report);
+      res.json({ report });
+    } catch (error) {
+      console.error('Volunteer error:', error);
+      res.status(500).json({ error: 'Terjadi kesalahan pada server' });
+    }
+  });
+
+  // ===================== FORUM API =====================
+
+  app.get('/api/forum/topics', async (req, res) => {
+    await setupDb();
+    try {
+      const result = await db.execute('SELECT data FROM forum_topics ORDER BY created_at DESC');
+      const topics = result.rows.map((row: any) => JSON.parse(row.data as string));
+      res.json({ topics });
+    } catch (error) {
+      console.error('Get forum topics error:', error);
+      res.status(500).json({ error: 'Terjadi kesalahan pada server' });
+    }
+  });
+
+  app.post('/api/forum/topics', requireAuth, async (req: any, res) => {
+    await setupDb();
+    try {
+      const id = 'topic-' + Date.now().toString().slice(-6);
+      const topic = { ...req.body, id, repliesCount: 0, replies: [], upvotes: 0, upvotedBy: [] };
+      await db.execute({
+        sql: 'INSERT INTO forum_topics (id, data, created_at) VALUES (?, ?, ?)',
+        args: [id, JSON.stringify(topic), Date.now()],
+      });
+      res.json({ topic });
+    } catch (error) {
+      console.error('Create topic error:', error);
+      res.status(500).json({ error: 'Terjadi kesalahan pada server' });
+    }
+  });
+
+  const getTopicById = async (id: string) => {
+    const result = await db.execute({ sql: 'SELECT data FROM forum_topics WHERE id = ?', args: [id] });
+    if (result.rows.length === 0) return null;
+    return JSON.parse(result.rows[0].data as string);
+  };
+  const saveTopic = async (id: string, topic: any) => {
+    await db.execute({ sql: 'UPDATE forum_topics SET data = ? WHERE id = ?', args: [JSON.stringify(topic), id] });
+  };
+
+  app.post('/api/forum/topics/:id/upvote', requireAuth, async (req: any, res) => {
+    await setupDb();
+    try {
+      const topic = await getTopicById(req.params.id);
+      if (!topic) return res.status(404).json({ error: 'Diskusi tidak ditemukan' });
+
+      const upvotedBy: string[] = topic.upvotedBy || [];
+      const idx = upvotedBy.indexOf(req.user.id);
+      if (idx === -1) {
+        upvotedBy.push(req.user.id);
+      } else {
+        upvotedBy.splice(idx, 1);
+      }
+      topic.upvotedBy = upvotedBy;
+      topic.upvotes = upvotedBy.length;
+      await saveTopic(req.params.id, topic);
+      res.json({ topic });
+    } catch (error) {
+      console.error('Upvote topic error:', error);
+      res.status(500).json({ error: 'Terjadi kesalahan pada server' });
+    }
+  });
+
+  app.post('/api/forum/topics/:id/reply', requireAuth, async (req: any, res) => {
+    await setupDb();
+    try {
+      const { content } = req.body;
+      const topic = await getTopicById(req.params.id);
+      if (!topic) return res.status(404).json({ error: 'Diskusi tidak ditemukan' });
+
+      const reply = {
+        id: 'reply-' + Date.now(),
+        author: req.user.email,
+        role: 'Warga',
+        avatarInitials: req.user.email.slice(0, 2).toUpperCase(),
+        timestamp: 'Baru saja',
+        content,
+        upvotes: 0,
+        upvotedBy: [],
+      };
+      topic.replies = [...(topic.replies || []), reply];
+      topic.repliesCount = topic.replies.length;
+      await saveTopic(req.params.id, topic);
+      res.json({ topic });
+    } catch (error) {
+      console.error('Add reply error:', error);
+      res.status(500).json({ error: 'Terjadi kesalahan pada server' });
+    }
+  });
+
+  app.post('/api/forum/topics/:topicId/replies/:replyId/upvote', requireAuth, async (req: any, res) => {
+    await setupDb();
+    try {
+      const topic = await getTopicById(req.params.topicId);
+      if (!topic) return res.status(404).json({ error: 'Diskusi tidak ditemukan' });
+
+      topic.replies = (topic.replies || []).map((r: any) => {
+        if (r.id !== req.params.replyId) return r;
+        const upvotedBy: string[] = r.upvotedBy || [];
+        const idx = upvotedBy.indexOf(req.user.id);
+        if (idx === -1) {
+          upvotedBy.push(req.user.id);
+        } else {
+          upvotedBy.splice(idx, 1);
+        }
+        return { ...r, upvotedBy, upvotes: upvotedBy.length };
+      });
+      await saveTopic(req.params.topicId, topic);
+      res.json({ topic });
+    } catch (error) {
+      console.error('Upvote reply error:', error);
       res.status(500).json({ error: 'Terjadi kesalahan pada server' });
     }
   });
