@@ -2,20 +2,25 @@ import { motion } from 'motion/react';
 import { CountUpStat } from './motion/CountUpStat';
 import { customEasing, springConfig } from './motion/PageTransition';
 import React, { useState } from 'react';
-import { Report } from '../types';
+import { Report, User } from '../types';
 import { Check } from 'lucide-react';
 
 interface ImpactViewProps {
   reports: Report[];
   onOpenReportModal: () => void;
+  user: User | null;
 }
 
-export const ImpactView: React.FC<ImpactViewProps> = ({ reports, onOpenReportModal }) => {
+export const ImpactView: React.FC<ImpactViewProps> = ({ reports, onOpenReportModal, user }) => {
   const [sliderPosition, setSliderPosition] = useState(50);
   const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null);
 
   // Handle Open Data Export
   const handleExportData = (format: 'json' | 'csv') => {
+    if (!user) {
+      alert('Silakan Masuk atau Daftar untuk mengunduh data terbuka.');
+      return;
+    }
     if (format === 'json') {
       const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(reports, null, 2));
       const downloadAnchor = document.createElement('a');
