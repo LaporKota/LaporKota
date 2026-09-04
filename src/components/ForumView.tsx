@@ -46,6 +46,10 @@ export const ForumView: React.FC<ForumViewProps> = ({ onOpenReportModal, user })
   // Upvote Topic
   const handleToggleTopicUpvote = (topicId: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!user) {
+      alert('Silakan Masuk atau Daftar untuk mendukung diskusi ini.');
+      return;
+    }
     const updated = topics.map((t) => {
       if (t.id === topicId) {
         const isUpvoted = !t.hasUpvoted;
@@ -74,6 +78,10 @@ export const ForumView: React.FC<ForumViewProps> = ({ onOpenReportModal, user })
 
   // Upvote Reply
   const handleToggleReplyUpvote = (topicId: string, replyId: string) => {
+    if (!user) {
+      alert('Silakan Masuk atau Daftar untuk mendukung tanggapan ini.');
+      return;
+    }
     const updated = topics.map((t) => {
       if (t.id === topicId) {
         const updatedReplies = t.replies.map((r) => {
