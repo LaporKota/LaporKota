@@ -1,4 +1,4 @@
-<img width="2866" height="1618" alt="image" src="https://github.com/user-attachments/assets/e5d26a08-a1b3-4ca0-8311-949e23a0105d" /># LaporKota
+<img width="2866" height="1618" alt="image" src="https://i.imgur.com/230UxM9.png" /># LaporKota
 
 **Digital Platform for Better Cities**
 
@@ -29,7 +29,7 @@ Proyek ini berfokus pada **SDG 11 (Kota dan Komunitas Berkelanjutan)**, serta me
 | :---: | :---: |
 | ![Beranda LaporKota](https://i.imgur.com/230UxM9.png) | ![Dashboard Eco-Pulse](https://i.imgur.com/HIhHuSn.png) |
 
-| Status & Perkembangan Laporan | Pusat Edukasi & Inovasi Hijau |
+| Peta Kota & Form Laporan | Forum Diskusi |
 | :---: | :---: |
 | ![Peta Kota](https://i.imgur.com/r5hw8Cl.png) | ![Forum Diskusi](https://i.imgur.com/FydkCw2.png) |
 
