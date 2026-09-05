@@ -4,6 +4,7 @@ import { createServer as createViteServer } from 'vite';
 import { createClient } from '@libsql/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { z } from 'zod';
 import { INITIAL_REPORTS } from './src/data/initialReports';
 import { INITIAL_FORUM_TOPICS } from './src/data/greenEcoData';
 
@@ -159,14 +160,103 @@ function requireAdmin(req: any, res: any, next: any) {
   next();
 }
 
+// ===================== RATE LIMITER (anti brute-force) =====================
+// In-memory limiter sederhana: max N request per window per kombinasi IP.
+// Cukup buat skala hackathon/single-instance; bukan pengganti Redis di production besar.
+const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
+
+function rateLimit(maxRequests: number, windowMs: number) {
+  return (req: any, res: any, next: any) => {
+    const key = `${req.ip}:${req.path}`;
+    const now = Date.now();
+    const entry = rateLimitStore.get(key);
+
+    if (!entry || now > entry.resetAt) {
+      rateLimitStore.set(key, { count: 1, resetAt: now + windowMs });
+      return next();
+    }
+
+    if (entry.count >= maxRequests) {
+      const secondsLeft = Math.ceil((entry.resetAt - now) / 1000);
+      return res.status(429).json({ error: `Terlalu banyak percobaan. Coba lagi dalam ${secondsLeft} detik.` });
+    }
+
+    entry.count++;
+    next();
+  };
+}
+
+// ===================== VALIDATION SCHEMAS (zod) =====================
+const signupSchema = z.object({
+  name: z.string().trim().min(2, 'Nama minimal 2 karakter').max(100),
+  email: z.string().trim().toLowerCase().email('Format email tidak valid'),
+  password: z.string().min(8, 'Password minimal 8 karakter').max(100),
+  phone: z.string().max(20).optional().nullable(),
+  domicile: z.string().max(100).optional().nullable(),
+});
+
+const loginSchema = z.object({
+  email: z.string().trim().toLowerCase().email('Format email tidak valid'),
+  password: z.string().min(1, 'Password wajib diisi'),
+});
+
+const reportSchema = z.object({
+  title: z.string().trim().min(5, 'Judul minimal 5 karakter').max(150),
+  description: z.string().trim().min(10, 'Deskripsi minimal 10 karakter').max(2000),
+  category: z.string().min(1),
+  location: z.string().min(1).max(200),
+}).passthrough(); // field lain (mapTopPct, imageUrl, dll) tetap diteruskan apa adanya
+
+const commentSchema = z.object({
+  content: z.string().trim().min(1, 'Komentar tidak boleh kosong').max(1000),
+  userName: z.string().max(100).optional(),
+});
+
+const statusUpdateSchema = z.object({
+  status: z.enum(['baru', 'diproses', 'selesai']),
+  note: z.string().trim().max(1000).optional(),
+});
+
+const forumTopicSchema = z.object({
+  title: z.string().trim().min(5, 'Judul minimal 5 karakter').max(150),
+  content: z.string().trim().min(10, 'Isi diskusi minimal 10 karakter').max(3000),
+  category: z.string().min(1),
+}).passthrough();
+
+const replySchema = z.object({
+  content: z.string().trim().min(1, 'Balasan tidak boleh kosong').max(1000),
+});
+
+// Middleware generator: validasi req.body pakai skema zod, kirim 400 kalau gagal
+function validateBody(schema: z.ZodTypeAny) {
+  return (req: any, res: any, next: any) => {
+    const result = schema.safeParse(req.body);
+    if (!result.success) {
+      const firstError = result.error.issues[0];
+      return res.status(400).json({ error: firstError?.message || 'Data tidak valid' });
+    }
+    req.body = result.data;
+    next();
+  };
+}
+
 async function startServer() {
   const app = express();
   const PORT = process.env.PORT || 3000;
 
   app.use(express.json());
 
+  // Security headers dasar (setara subset helmet, tanpa nambah dependency baru)
+  app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '0');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    next();
+  });
+
   // API ROUTES
-  app.post('/api/auth/signup', async (req, res) => {
+  app.post('/api/auth/signup', rateLimit(10, 15 * 60 * 1000), validateBody(signupSchema), async (req, res) => {
     await setupDb();
     try {
       const { name, email, password, phone, domicile } = req.body;
@@ -191,7 +281,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/auth/login', async (req, res) => {
+  app.post('/api/auth/login', rateLimit(10, 15 * 60 * 1000), validateBody(loginSchema), async (req, res) => {
     await setupDb();
     try {
       const { email, password } = req.body;
@@ -247,7 +337,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/reports', requireAuth, async (req: any, res) => {
+  app.post('/api/reports', requireAuth, validateBody(reportSchema), async (req: any, res) => {
     await setupDb();
     try {
       const id = 'rep-' + Date.now().toString().slice(-6);
@@ -296,7 +386,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/reports/:id/status', requireAdmin, async (req: any, res) => {
+  app.post('/api/reports/:id/status', requireAdmin, validateBody(statusUpdateSchema), async (req: any, res) => {
     await setupDb();
     try {
       const { status, note } = req.body;
@@ -323,7 +413,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/reports/:id/comment', requireAuth, async (req: any, res) => {
+  app.post('/api/reports/:id/comment', requireAuth, validateBody(commentSchema), async (req: any, res) => {
     await setupDb();
     try {
       const { content, userName } = req.body;
@@ -390,7 +480,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/forum/topics', requireAuth, async (req: any, res) => {
+  app.post('/api/forum/topics', requireAuth, validateBody(forumTopicSchema), async (req: any, res) => {
     await setupDb();
     try {
       const id = 'topic-' + Date.now().toString().slice(-6);
@@ -438,7 +528,7 @@ async function startServer() {
     }
   });
 
-  app.post('/api/forum/topics/:id/reply', requireAuth, async (req: any, res) => {
+  app.post('/api/forum/topics/:id/reply', requireAuth, validateBody(replySchema), async (req: any, res) => {
     await setupDb();
     try {
       const { content } = req.body;
