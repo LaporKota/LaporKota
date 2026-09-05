@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { ForumTopic, ForumCategory, ForumReply, User } from '../types';
 
 interface ForumViewProps {
@@ -50,7 +51,7 @@ export const ForumView: React.FC<ForumViewProps> = ({ onOpenReportModal, user })
   const handleToggleTopicUpvote = (topicId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!user) {
-      alert('Silakan Masuk atau Daftar untuk mendukung diskusi ini.');
+      toast.warning('Silakan Masuk atau Daftar untuk mendukung diskusi ini.');
       return;
     }
     fetch(`/api/forum/topics/${topicId}/upvote`, { method: 'POST', headers: authHeaders() })
@@ -58,13 +59,13 @@ export const ForumView: React.FC<ForumViewProps> = ({ onOpenReportModal, user })
       .then((data) => {
         if (data.topic) applyUpdatedTopic(data.topic);
       })
-      .catch(() => alert('Terjadi kesalahan jaringan'));
+      .catch(() => toast.error('Terjadi kesalahan jaringan'));
   };
 
   // Upvote Reply
   const handleToggleReplyUpvote = (topicId: string, replyId: string) => {
     if (!user) {
-      alert('Silakan Masuk atau Daftar untuk mendukung tanggapan ini.');
+      toast.warning('Silakan Masuk atau Daftar untuk mendukung tanggapan ini.');
       return;
     }
     fetch(`/api/forum/topics/${topicId}/replies/${replyId}/upvote`, { method: 'POST', headers: authHeaders() })
@@ -72,7 +73,7 @@ export const ForumView: React.FC<ForumViewProps> = ({ onOpenReportModal, user })
       .then((data) => {
         if (data.topic) applyUpdatedTopic(data.topic);
       })
-      .catch(() => alert('Terjadi kesalahan jaringan'));
+      .catch(() => toast.error('Terjadi kesalahan jaringan'));
   };
 
   // Create New Topic
@@ -81,7 +82,7 @@ export const ForumView: React.FC<ForumViewProps> = ({ onOpenReportModal, user })
     if (!newTitle.trim() || !newContent.trim()) return;
 
     if (!user) {
-      alert('Silakan Masuk atau Daftar untuk membuat diskusi.');
+      toast.warning('Silakan Masuk atau Daftar untuk membuat diskusi.');
       return;
     }
 
@@ -117,7 +118,7 @@ export const ForumView: React.FC<ForumViewProps> = ({ onOpenReportModal, user })
       .then((res) => res.json())
       .then((data) => {
         if (!data.topic) {
-          alert(data.error || 'Gagal membuat diskusi');
+          toast.error(data.error || 'Gagal membuat diskusi');
           return;
         }
         setTopics((prev) => [data.topic, ...prev]);
@@ -126,7 +127,7 @@ export const ForumView: React.FC<ForumViewProps> = ({ onOpenReportModal, user })
         setNewContent('');
         setNewTagsInput('');
       })
-      .catch(() => alert('Terjadi kesalahan jaringan'));
+      .catch(() => toast.error('Terjadi kesalahan jaringan'));
   };
 
   // Add Reply
@@ -135,7 +136,7 @@ export const ForumView: React.FC<ForumViewProps> = ({ onOpenReportModal, user })
     if (!replyInput.trim() || !activeTopicForModal) return;
 
     if (!user) {
-      alert('Silakan Masuk atau Daftar untuk membalas.');
+      toast.warning('Silakan Masuk atau Daftar untuk membalas.');
       return;
     }
 
@@ -147,13 +148,13 @@ export const ForumView: React.FC<ForumViewProps> = ({ onOpenReportModal, user })
       .then((res) => res.json())
       .then((data) => {
         if (!data.topic) {
-          alert(data.error || 'Gagal mengirim balasan');
+          toast.error(data.error || 'Gagal mengirim balasan');
           return;
         }
         applyUpdatedTopic(data.topic);
         setReplyInput('');
       })
-      .catch(() => alert('Terjadi kesalahan jaringan'));
+      .catch(() => toast.error('Terjadi kesalahan jaringan'));
   };
 
   // Filtered Topics
