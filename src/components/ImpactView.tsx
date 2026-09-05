@@ -2,6 +2,7 @@ import { motion } from 'motion/react';
 import { CountUpStat } from './motion/CountUpStat';
 import { customEasing, springConfig } from './motion/PageTransition';
 import React, { useState } from 'react';
+import { toast } from 'sonner';
 import { Report, User } from '../types';
 import { Check } from 'lucide-react';
 
@@ -18,7 +19,7 @@ export const ImpactView: React.FC<ImpactViewProps> = ({ reports, onOpenReportMod
   // Handle Open Data Export
   const handleExportData = (format: 'json' | 'csv') => {
     if (!user) {
-      alert('Silakan Masuk atau Daftar untuk mengunduh data terbuka.');
+      toast.warning('Silakan Masuk atau Daftar untuk mengunduh data terbuka.');
       return;
     }
     if (format === 'json') {
