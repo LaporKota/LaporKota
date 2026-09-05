@@ -189,21 +189,8 @@ function rateLimit(maxRequests: number, windowMs: number) {
 // ===================== VALIDATION SCHEMAS (zod) =====================
 const signupSchema = z.object({
   name: z.string().trim().min(2, 'Nama minimal 2 karakter').max(100),
-  email: z
-    .string()
-    .trim()
-    .toLowerCase()
-    .email('Format email tidak valid')
-    .refine((val) => /^[a-zA-Z0-9._%+-]+@gmail\.com$/.test(val), {
-      message: 'Wajib menggunakan email Gmail (contoh: namakamu@gmail.com)',
-    }),
-  password: z
-    .string()
-    .min(8, 'Password minimal 8 karakter')
-    .max(100)
-    .regex(/[A-Z]/, 'Password harus mengandung minimal 1 huruf kapital')
-    .regex(/[a-z]/, 'Password harus mengandung minimal 1 huruf kecil')
-    .regex(/[0-9]/, 'Password harus mengandung minimal 1 angka'),
+  email: z.string().trim().toLowerCase().email('Format email tidak valid'),
+  password: z.string().min(8, 'Password minimal 8 karakter').max(100),
   phone: z.string().max(20).optional().nullable(),
   domicile: z.string().max(100).optional().nullable(),
 });
@@ -447,6 +434,27 @@ async function startServer() {
       res.json({ report });
     } catch (error) {
       console.error('Add comment error:', error);
+      res.status(500).json({ error: 'Terjadi kesalahan pada server' });
+    }
+  });
+
+  // Hapus laporan — hanya boleh oleh pembuat laporan (report.userId) atau admin
+  app.delete('/api/reports/:id', requireAuth, async (req: any, res) => {
+    await setupDb();
+    try {
+      const report = await getReportById(req.params.id);
+      if (!report) return res.status(404).json({ error: 'Laporan tidak ditemukan' });
+
+      const isOwner = report.userId && report.userId === req.user.id;
+      const isAdmin = req.user.role === 'admin';
+      if (!isOwner && !isAdmin) {
+        return res.status(403).json({ error: 'Anda tidak berhak menghapus laporan ini.' });
+      }
+
+      await db.execute({ sql: 'DELETE FROM reports WHERE id = ?', args: [req.params.id] });
+      res.json({ success: true, id: req.params.id });
+    } catch (error) {
+      console.error('Delete report error:', error);
       res.status(500).json({ error: 'Terjadi kesalahan pada server' });
     }
   });
