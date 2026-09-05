@@ -163,7 +163,7 @@ export default function App() {
   const handleToggleUpvote = (reportId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!currentUser) {
-      alert('Silakan Masuk atau Daftar untuk mendukung laporan.');
+      toast.warning('Silakan Masuk atau Daftar untuk mendukung laporan.');
       setCurrentTab('login');
       return;
     }
@@ -209,7 +209,7 @@ export default function App() {
   // Cek login dulu sebelum buka form daftar relawan
   const handleOpenVolunteerModal = (report: Report) => {
     if (!currentUser) {
-      alert('Silakan Masuk atau Daftar untuk mengikuti aksi relawan.');
+      toast.warning('Silakan Masuk atau Daftar untuk mengikuti aksi relawan.');
       setCurrentTab('login');
       return;
     }
@@ -218,7 +218,7 @@ export default function App() {
 
   const handleCreateReport = (newReportData: Partial<Report>) => {
     if (!currentUser) {
-      alert('Silakan Masuk atau Daftar untuk membuat laporan.');
+      toast.warning('Silakan Masuk atau Daftar untuk membuat laporan.');
       setCurrentTab('login');
       return;
     }
@@ -320,7 +320,7 @@ export default function App() {
   // Handle Add Comment
   const handleAddComment = (reportId: string, commentText: string) => {
     if (!currentUser) {
-      alert('Silakan Masuk atau Daftar untuk berkomentar.');
+      toast.warning('Silakan Masuk atau Daftar untuk berkomentar.');
       setCurrentTab('login');
       return;
     }
@@ -418,7 +418,30 @@ export default function App() {
 
   return (
     <div className="bg-slate-50 text-slate-900 min-h-screen flex flex-col font-body selection:bg-primary-600 selection:text-slate-900">
-      <Toaster position="top-center" richColors />
+      <Toaster
+        position="top-center"
+        closeButton
+        icons={{
+          success: <span className="material-symbols-outlined fill text-primary-600 text-[20px]">check_circle</span>,
+          error: <span className="material-symbols-outlined fill text-rose-500 text-[20px]">error</span>,
+          warning: <span className="material-symbols-outlined fill text-amber-500 text-[20px]">warning</span>,
+          info: <span className="material-symbols-outlined fill text-primary-600 text-[20px]">info</span>,
+        }}
+        toastOptions={{
+          classNames: {
+            toast:
+              'bg-white brutal-border-sm brutal-shadow-sm rounded-xl font-body px-4 py-3 gap-3 items-start',
+            title: 'font-headline font-bold text-sm tracking-tight text-[#1a1a1a]',
+            description: 'font-body text-xs text-slate-600 mt-0.5',
+            closeButton:
+              'bg-white brutal-border-sm rounded-lg text-[#1a1a1a] hover:bg-rose-500 hover:text-white hover:border-rose-500',
+            success: 'border-l-4 border-l-primary-600',
+            error: 'border-l-4 border-l-rose-500',
+            warning: 'border-l-4 border-l-amber-500',
+            info: 'border-l-4 border-l-primary-600',
+          },
+        }}
+      />
       {/* Top Navbar */}
       <Header
         currentTab={currentTab}
