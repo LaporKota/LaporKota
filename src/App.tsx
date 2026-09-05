@@ -289,6 +289,22 @@ export default function App() {
       .catch(() => toast.error('Terjadi kesalahan jaringan'));
   };
 
+  // Handle Delete Report — hanya pembuat laporan atau admin (divalidasi juga di server)
+  const handleDeleteReport = (reportId: string) => {
+    fetch(`/api/reports/${reportId}`, { method: 'DELETE', headers: authHeaders() })
+      .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
+      .then(({ ok, data }) => {
+        if (!ok) {
+          toast.error(data.error || 'Gagal menghapus laporan');
+          return;
+        }
+        setReports((prev) => prev.filter((r) => r.id !== reportId));
+        setSelectedReport((prev) => (prev && prev.id === reportId ? null : prev));
+        toast.success('Laporan berhasil dihapus');
+      })
+      .catch(() => toast.error('Terjadi kesalahan jaringan'));
+  };
+
   // Handle Status Update (e.g. Petugas mode) — hanya admin, divalidasi juga di server
   const handleUpdateStatus = (reportId: string, newStatus: ReportStatus, note: string) => {
     fetch(`/api/reports/${reportId}/status`, {
@@ -588,6 +604,7 @@ export default function App() {
           onToggleUpvote={handleToggleUpvote}
           onUpdateStatus={handleUpdateStatus}
           onAddComment={handleAddComment}
+          onDeleteReport={handleDeleteReport}
           currentUser={currentUser}
         />
       )}
