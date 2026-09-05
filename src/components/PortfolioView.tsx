@@ -2,6 +2,7 @@ import { motion } from 'motion/react';
 import { CountUpStat } from './motion/CountUpStat';
 import { customEasing, springConfig } from './motion/PageTransition';
 import React, { useState } from 'react';
+import { toast } from 'sonner';
 import { PORTFOLIO_PROJECTS } from '../data/greenEcoData';
 import { PortfolioCaseStudy, User } from '../types';
 
@@ -30,7 +31,7 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({ onNavigateToEcoPul
 
   const handleDownloadBlueprint = (project: PortfolioCaseStudy) => {
     if (!user) {
-      alert('Silakan Masuk atau Daftar untuk mengunduh blueprint teknis.');
+      toast.warning('Silakan Masuk atau Daftar untuk mengunduh blueprint teknis.');
       return;
     }
     const blueprintData = {
