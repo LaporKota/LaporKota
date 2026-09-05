@@ -189,8 +189,21 @@ function rateLimit(maxRequests: number, windowMs: number) {
 // ===================== VALIDATION SCHEMAS (zod) =====================
 const signupSchema = z.object({
   name: z.string().trim().min(2, 'Nama minimal 2 karakter').max(100),
-  email: z.string().trim().toLowerCase().email('Format email tidak valid'),
-  password: z.string().min(8, 'Password minimal 8 karakter').max(100),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email('Format email tidak valid')
+    .refine((val) => /^[a-zA-Z0-9._%+-]+@gmail\.com$/.test(val), {
+      message: 'Wajib menggunakan email Gmail (contoh: namakamu@gmail.com)',
+    }),
+  password: z
+    .string()
+    .min(8, 'Password minimal 8 karakter')
+    .max(100)
+    .regex(/[A-Z]/, 'Password harus mengandung minimal 1 huruf kapital')
+    .regex(/[a-z]/, 'Password harus mengandung minimal 1 huruf kecil')
+    .regex(/[0-9]/, 'Password harus mengandung minimal 1 angka'),
   phone: z.string().max(20).optional().nullable(),
   domicile: z.string().max(100).optional().nullable(),
 });
