@@ -1,6 +1,6 @@
 <img width="2866" height="1618" alt="image" src="https://i.imgur.com/230UxM9.png" /> 
-## LaporKota
 
+**LaporKota**
 **Digital Platform for Better Cities**
 
 LaporKota adalah platform pelaporan permasalahan perkotaan yang menghubungkan warga dengan pemangku kepentingan kota secara real-time. Dibangun untuk ITechno Cup 2026, kategori Web Development, dengan subtema *"Smart Sustainable Digital Solution for Inclusive Society"*.
