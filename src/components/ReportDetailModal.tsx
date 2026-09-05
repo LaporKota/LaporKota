@@ -7,6 +7,7 @@ interface ReportDetailModalProps {
   onToggleUpvote: (reportId: string, e: React.MouseEvent) => void;
   onUpdateStatus: (reportId: string, newStatus: ReportStatus, note: string) => void;
   onAddComment: (reportId: string, commentText: string) => void;
+  onDeleteReport: (reportId: string) => void;
   currentUser: User | null;
 }
 
@@ -16,6 +17,7 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
   onToggleUpvote,
   onUpdateStatus,
   onAddComment,
+  onDeleteReport,
   currentUser,
 }) => {
   const [commentInput, setCommentInput] = useState('');
@@ -23,6 +25,7 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
   const [selectedNewStatus, setSelectedNewStatus] = useState<ReportStatus>('diproses');
   const [showStatusForm, setShowStatusForm] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   if (!report) return null;
 
@@ -46,6 +49,18 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
     navigator.clipboard?.writeText?.(shareUrl);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);
+  };
+
+  const canDelete = !!currentUser && (currentUser.id === report.userId || currentUser.role === 'admin');
+
+  const handleDeleteClick = () => {
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      setTimeout(() => setConfirmDelete(false), 3000);
+      return;
+    }
+    onDeleteReport(report.id);
+    onClose();
   };
 
   return (
@@ -160,6 +175,20 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                 <span className="material-symbols-outlined text-[16px]">share</span>
                 {copiedLink ? 'Link Tersalin!' : 'Bagikan'}
               </button>
+
+              {canDelete && (
+                <button
+                  onClick={handleDeleteClick}
+                  className={`px-3 py-2 border rounded-lg font-label text-xs font-medium shadow-sm flex items-center gap-1.5 cursor-pointer transition-colors ${
+                    confirmDelete
+                      ? 'bg-rose-500 border-rose-500 text-white hover:bg-rose-600'
+                      : 'bg-white border-slate-200 text-rose-600 hover:bg-rose-50'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[16px]">delete</span>
+                  {confirmDelete ? 'Yakin? Klik Sekali Lagi' : 'Hapus Laporan'}
+                </button>
+              )}
             </div>
 
             {/* Officer / Admin Panel — hanya tampil untuk akun dengan role admin */}
