@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Report, ReportStatus, User } from '../types';
+import { isUpvotedByUser } from '../utils/upvote';
 
 interface ReportDetailModalProps {
   report: Report | null;
@@ -34,6 +35,7 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
   const safeUpdates = report.updates || [];
   const safeComments = report.comments || [];
   const safeReporterName = report.reporterName || 'Warga';
+  const userUpvoted = isUpvotedByUser(report, currentUser);
 
   const handleCommentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -163,15 +165,15 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
               <button
                 onClick={(e) => onToggleUpvote(report.id, e)}
                 className={`px-4 py-2 border border-slate-200 rounded-lg font-label text-sm font-medium flex items-center gap-2 transition-all active:scale-95 cursor-pointer ${
-                  report.hasUpvoted
+                  userUpvoted
                     ? 'bg-rose-50 shadow-sm'
                     : 'bg-white hover:bg-rose-50 shadow-sm'
                 }`}
               >
-                <span className={`material-symbols-outlined text-[18px] ${report.hasUpvoted ? 'fill text-rose-500' : ''}`}>
+                <span className={`material-symbols-outlined text-[18px] ${userUpvoted ? 'fill text-rose-500' : ''}`}>
                   thumb_up
                 </span>
-                {report.hasUpvoted ? 'Didukung (' + report.upvotes + ')' : 'Dukung (' + report.upvotes + ')'}
+                {userUpvoted ? 'Didukung (' + report.upvotes + ')' : 'Dukung (' + report.upvotes + ')'}
               </button>
 
               <button
