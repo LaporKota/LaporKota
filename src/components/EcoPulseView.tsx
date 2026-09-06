@@ -43,6 +43,14 @@ export const EcoPulseView: React.FC<EcoPulseViewProps> = ({
   // ~1 kWp per 6 m2, 1 kWp generates ~4 kWh/day in Indonesia
   const estimatedKwp = Math.round((roofAreaM2 / 6) * 10) / 10;
   const estimatedMonthlyKwh = Math.round(estimatedKwp * sunHoursPerDay * 30);
+
+  // Skala sumbu-Y grafik generasi listrik — dibulatkan ke atas ke kelipatan 100 terdekat
+  const energyChartMax =
+    Math.ceil(
+      Math.max(...SMART_ENERGY_DATA.hourlyGeneration.flatMap((g) => [g.solarKwh, g.gridDrawKwh])) / 100
+    ) * 100;
+  const totalSolarKwh = SMART_ENERGY_DATA.hourlyGeneration.reduce((sum, g) => sum + g.solarKwh, 0);
+  const totalGridKwh = SMART_ENERGY_DATA.hourlyGeneration.reduce((sum, g) => sum + g.gridDrawKwh, 0);
   const estimatedMonthlySavingsIdr = Math.round(estimatedMonthlyKwh * 1444.7); // standard PLN tarif R-1/TR
   const estimatedCo2OffsetKg = Math.round(estimatedMonthlyKwh * 0.85);
 
@@ -195,46 +203,88 @@ export const EcoPulseView: React.FC<EcoPulseViewProps> = ({
             {/* Generation Hourly Bars */}
             <div className="lg:col-span-2 bg-white border border-slate-200 rounded-xl p-6 shadow-lg flex flex-col justify-between">
               <div>
-                <div className="flex justify-between items-center mb-3">
+                <div className="flex flex-wrap justify-between items-start gap-2 mb-1">
                   <h3 className="font-headline text-lg font-semibold">
                     PROFIL GENERASI LISTRIK SURYA VS JARINGAN PLN (HARI INI)
                   </h3>
-                  <span className="text-xs font-label text-slate-500">Interval 2 Jam</span>
+                  <span className="text-xs font-label font-bold text-slate-500 bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 whitespace-nowrap">
+                    Interval 2 Jam
+                  </span>
                 </div>
-                <p className="font-body text-xs text-slate-500 mb-4">
-                  Perbandingan daya yang disuplai oleh modul fotovoltaik mikro (kuning) vs pasokan jaringan konvensional PLN (biru).
+                <p className="font-body text-xs text-slate-500 mb-2">
+                  Perbandingan daya yang disuplai oleh modul fotovoltaik mikro vs pasokan jaringan konvensional PLN.
                 </p>
 
-                <div className="grid grid-cols-7 gap-2 items-end h-44 pt-4 border-b-2 border-l-2 border-slate-200 px-2">
-                  {SMART_ENERGY_DATA.hourlyGeneration.map((g) => (
-                    <div key={g.time} className="flex flex-col items-center gap-1 h-full justify-end">
-                      <div className="w-full flex gap-1 items-end justify-center h-32">
-                        {/* Solar Bar */}
-                        <div
-                          style={{ height: `${(g.solarKwh / 900) * 100}%` }}
-                          className="w-1/2 bg-primary-600 border border-slate-200 rounded-lg transition-all hover:opacity-80"
-                          title={`Surya: ${g.solarKwh} kWh`}
-                        />
-                        {/* Grid Bar */}
-                        <div
-                          style={{ height: `${(g.gridDrawKwh / 900) * 100}%` }}
-                          className="w-1/2 bg-primary-600 border border-slate-200 rounded-lg transition-all hover:opacity-80"
-                          title={`PLN: ${g.gridDrawKwh} kWh`}
-                        />
+                {/* Ringkasan total per sumber */}
+                <div className="flex flex-wrap gap-4 mb-5">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+                    <span className="font-label text-xs text-slate-500">Total Surya:</span>
+                    <span className="font-headline text-sm font-bold text-slate-900">{totalSolarKwh} kWh</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-sky-500"></span>
+                    <span className="font-label text-xs text-slate-500">Total PLN:</span>
+                    <span className="font-headline text-sm font-bold text-slate-900">{totalGridKwh} kWh</span>
+                  </div>
+                </div>
+
+                {/* Chart Area: Y-axis grid lines + bar groups */}
+                <div className="relative pl-10 pr-2">
+                  {/* Garis bantu & label sumbu-Y */}
+                  <div className="absolute left-0 top-0 h-44 w-full flex flex-col justify-between pointer-events-none">
+                    {[4, 3, 2, 1, 0].map((step) => (
+                      <div key={step} className="flex items-center gap-2 w-full">
+                        <span className="font-label text-[10px] text-slate-400 w-8 text-right shrink-0">
+                          {Math.round((energyChartMax / 4) * step)}
+                        </span>
+                        <div className="flex-grow border-t border-dashed border-slate-200"></div>
                       </div>
-                      <span className="font-label text-[10px] font-bold text-slate-900">{g.time}</span>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+
+                  <div className="relative grid grid-cols-7 gap-2 items-end h-44 pt-1">
+                    {SMART_ENERGY_DATA.hourlyGeneration.map((g) => (
+                      <div key={g.time} className="flex flex-col items-center gap-1.5 h-full justify-end group/bar">
+                        <div className="w-full flex gap-1.5 items-end justify-center h-full">
+                          {/* Solar Bar */}
+                          <div className="relative w-1/2 h-full flex items-end justify-center">
+                            <span className="absolute -top-5 opacity-0 group-hover/bar:opacity-100 transition-opacity font-label text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded px-1 whitespace-nowrap">
+                              {g.solarKwh} kWh
+                            </span>
+                            <div
+                              style={{ height: `${(g.solarKwh / energyChartMax) * 100}%` }}
+                              className="w-full min-h-[3px] bg-amber-400 rounded-t-md transition-all duration-300 group-hover/bar:bg-amber-500"
+                              title={`Surya: ${g.solarKwh} kWh`}
+                            />
+                          </div>
+                          {/* Grid Bar */}
+                          <div className="relative w-1/2 h-full flex items-end justify-center">
+                            <span className="absolute -top-5 opacity-0 group-hover/bar:opacity-100 transition-opacity font-label text-[10px] font-bold text-sky-600 bg-sky-50 border border-sky-200 rounded px-1 whitespace-nowrap">
+                              {g.gridDrawKwh} kWh
+                            </span>
+                            <div
+                              style={{ height: `${(g.gridDrawKwh / energyChartMax) * 100}%` }}
+                              className="w-full min-h-[3px] bg-sky-500 rounded-t-md transition-all duration-300 group-hover/bar:bg-sky-600"
+                              title={`PLN: ${g.gridDrawKwh} kWh`}
+                            />
+                          </div>
+                        </div>
+                        <span className="font-label text-[10px] font-bold text-slate-900">{g.time}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="border-b-2 border-slate-200 ml-0"></div>
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-4 mt-4 text-xs font-label font-bold pt-2">
+              <div className="flex flex-wrap gap-4 mt-5 text-xs font-label font-bold pt-3 border-t border-slate-200">
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-primary-600 border border-slate-200"></div>
+                  <div className="w-3.5 h-3.5 rounded bg-amber-400"></div>
                   <span>Generasi Tenaga Surya (Solar PV)</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-primary-600 border border-slate-200"></div>
+                  <div className="w-3.5 h-3.5 rounded bg-sky-500"></div>
                   <span>Konsumsi Jaringan PLN</span>
                 </div>
               </div>
