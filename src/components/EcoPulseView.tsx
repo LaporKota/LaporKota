@@ -44,6 +44,11 @@ export const EcoPulseView: React.FC<EcoPulseViewProps> = ({
   const estimatedKwp = Math.round((roofAreaM2 / 6) * 10) / 10;
   const estimatedMonthlyKwh = Math.round(estimatedKwp * sunHoursPerDay * 30);
 
+  // Persentase isi slider — dipakai buat gambar track custom (menghindari bug track jadi
+  // hitam di beberapa browser saat pakai warna accent-color yang terlalu terang)
+  const roofAreaPct = ((roofAreaM2 - 12) / (150 - 12)) * 100;
+  const sunHoursPct = ((sunHoursPerDay - 3.0) / (6.0 - 3.0)) * 100;
+
   // Skala sumbu-Y grafik generasi listrik — dibulatkan ke atas ke kelipatan 100 terdekat
   const energyChartMax =
     Math.ceil(
@@ -316,7 +321,17 @@ export const EcoPulseView: React.FC<EcoPulseViewProps> = ({
                     step="6"
                     value={roofAreaM2}
                     onChange={(e) => setRoofAreaM2(Number(e.target.value))}
-                    className="accent-primary-600 cursor-pointer"
+                    style={{
+                      background: `linear-gradient(to right, #0d9488 ${roofAreaPct}%, #e2e8f0 ${roofAreaPct}%)`,
+                    }}
+                    className="w-full h-2 rounded-full appearance-none cursor-pointer outline-none
+                      [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5
+                      [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary-600
+                      [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow-md
+                      [&::-webkit-slider-thumb]:cursor-pointer
+                      [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full
+                      [&::-moz-range-thumb]:bg-primary-600 [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white
+                      [&::-moz-range-thumb]:shadow-md [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-track]:bg-transparent"
                   />
                   <div className="flex justify-between text-[10px] text-slate-500">
                     <span>12 m² (Rumah Kecil)</span>
@@ -337,7 +352,17 @@ export const EcoPulseView: React.FC<EcoPulseViewProps> = ({
                     step="0.5"
                     value={sunHoursPerDay}
                     onChange={(e) => setSunHoursPerDay(Number(e.target.value))}
-                    className="accent-[#ffcc00] cursor-pointer"
+                    style={{
+                      background: `linear-gradient(to right, #f59e0b ${sunHoursPct}%, #e2e8f0 ${sunHoursPct}%)`,
+                    }}
+                    className="w-full h-2 rounded-full appearance-none cursor-pointer outline-none
+                      [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5
+                      [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-amber-500
+                      [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow-md
+                      [&::-webkit-slider-thumb]:cursor-pointer
+                      [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full
+                      [&::-moz-range-thumb]:bg-amber-500 [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white
+                      [&::-moz-range-thumb]:shadow-md [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-track]:bg-transparent"
                   />
                 </div>
 
