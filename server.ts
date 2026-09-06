@@ -189,8 +189,21 @@ function rateLimit(maxRequests: number, windowMs: number) {
 // ===================== VALIDATION SCHEMAS (zod) =====================
 const signupSchema = z.object({
   name: z.string().trim().min(2, 'Nama minimal 2 karakter').max(100),
-  email: z.string().trim().toLowerCase().email('Format email tidak valid'),
-  password: z.string().min(8, 'Password minimal 8 karakter').max(100),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email('Format email tidak valid')
+    .refine((val) => /^[a-zA-Z0-9._%+-]+@gmail\.com$/.test(val), {
+      message: 'Wajib menggunakan email Gmail (contoh: namakamu@gmail.com)',
+    }),
+  password: z
+    .string()
+    .min(8, 'Password minimal 8 karakter')
+    .max(100)
+    .regex(/[A-Z]/, 'Password harus mengandung minimal 1 huruf kapital')
+    .regex(/[a-z]/, 'Password harus mengandung minimal 1 huruf kecil')
+    .regex(/[0-9]/, 'Password harus mengandung minimal 1 angka'),
   phone: z.string().max(20).optional().nullable(),
   domicile: z.string().max(100).optional().nullable(),
 });
@@ -325,6 +338,18 @@ async function startServer() {
 
   // ===================== REPORTS API =====================
 
+  app.get('/api/admin/stats', requireAdmin, async (req: any, res) => {
+    await setupDb();
+    try {
+      const usersResult = await db.execute("SELECT COUNT(*) as cnt FROM users WHERE role = 'user'");
+      const totalUsers = Number(usersResult.rows[0]?.cnt || 0);
+      res.json({ totalUsers });
+    } catch (error) {
+      console.error('Get admin stats error:', error);
+      res.status(500).json({ error: 'Terjadi kesalahan pada server' });
+    }
+  });
+
   app.get('/api/reports', async (req, res) => {
     await setupDb();
     try {
@@ -376,8 +401,12 @@ async function startServer() {
       } else {
         upvotedBy.splice(idx, 1);
       }
+      // baseUpvotes = angka "historis" dari seed data (kalau belum ada, anggap 0)
+      if (report.baseUpvotes === undefined) {
+        report.baseUpvotes = Math.max(0, (report.upvotes || 0) - (report.upvotedBy || []).length);
+      }
       report.upvotedBy = upvotedBy;
-      report.upvotes = upvotedBy.length;
+      report.upvotes = report.baseUpvotes + upvotedBy.length;
       await saveReport(req.params.id, report);
       res.json({ report });
     } catch (error) {
@@ -539,8 +568,11 @@ async function startServer() {
       } else {
         upvotedBy.splice(idx, 1);
       }
+      if (topic.baseUpvotes === undefined) {
+        topic.baseUpvotes = Math.max(0, (topic.upvotes || 0) - (topic.upvotedBy || []).length);
+      }
       topic.upvotedBy = upvotedBy;
-      topic.upvotes = upvotedBy.length;
+      topic.upvotes = topic.baseUpvotes + upvotedBy.length;
       await saveTopic(req.params.id, topic);
       res.json({ topic });
     } catch (error) {
@@ -591,7 +623,10 @@ async function startServer() {
         } else {
           upvotedBy.splice(idx, 1);
         }
-        return { ...r, upvotedBy, upvotes: upvotedBy.length };
+        const baseUpvotes = r.baseUpvotes !== undefined
+          ? r.baseUpvotes
+          : Math.max(0, (r.upvotes || 0) - (r.upvotedBy || []).length);
+        return { ...r, baseUpvotes, upvotedBy, upvotes: baseUpvotes + upvotedBy.length };
       });
       await saveTopic(req.params.topicId, topic);
       res.json({ topic });
