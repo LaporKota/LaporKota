@@ -13,3 +13,11 @@ export function isUpvotedByUser(report: Report, user: User | null | undefined): 
   if (!report.upvotedBy || report.upvotedBy.length === 0) return false;
   return report.upvotedBy.includes(user.id);
 }
+
+// Versi generic dari isUpvotedByUser di atas, dipakai untuk item non-Report
+// yang juga punya field `upvotedBy` (topic forum & reply forum).
+export function isItemUpvotedByUser(item: { upvotedBy?: string[] }, user: User | null | undefined): boolean {
+  if (!user) return false;
+  if (!item.upvotedBy || item.upvotedBy.length === 0) return false;
+  return item.upvotedBy.includes(user.id);
+}
