@@ -14,10 +14,8 @@ const signupSchema = z.object({
   name: z.string().min(2, 'Nama minimal 2 karakter'),
   email: z
     .string()
-    .email('Format email tidak valid')
-    .refine((val) => /^[a-zA-Z0-9._%+-]+@gmail\.com$/.test(val), {
-      message: 'Wajib menggunakan email Gmail (contoh: namakamu@gmail.com)',
-    }),
+    .min(1, 'Email wajib diisi')
+    .email('Format email tidak valid'),
   domicile: z.string().optional(),
   password: z
     .string()
@@ -109,13 +107,13 @@ export const SignupView: React.FC<SignupViewProps> = ({ onSignup, onNavigateToLo
 
           <div>
             <label className="block font-label text-xs font-medium text-slate-900 mb-1">
-              Email (Gmail)
+              Email
             </label>
             <input
               type="text"
               {...register('email')}
               className="w-full border border-slate-200 rounded-lg bg-slate-50 p-3 font-body text-sm text-slate-900 focus:bg-white focus:outline-none shadow-sm"
-              placeholder="namakamu@gmail.com"
+              placeholder="Masukkan email"
             />
             {errors.email && <p className="text-rose-500 text-xs font-bold mt-1">{errors.email.message}</p>}
           </div>
