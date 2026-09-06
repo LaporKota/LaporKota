@@ -46,6 +46,8 @@ const setupDb = async () => {
   };
   await ensureColumn('phone TEXT');
   await ensureColumn('domicile TEXT');
+  await ensureColumn('bio TEXT');
+  await ensureColumn('avatar_url TEXT');
 
   // Tabel untuk laporan warga (Report) — disimpan sebagai JSON blob
   // biar gampang reuse struktur data yang sama persis kayak di frontend
@@ -210,6 +212,14 @@ const loginSchema = z.object({
   password: z.string().min(1, 'Password wajib diisi'),
 });
 
+const profileUpdateSchema = z.object({
+  name: z.string().trim().min(2, 'Nama minimal 2 karakter').max(100),
+  domicile: z.string().trim().max(100).optional().nullable(),
+  bio: z.string().trim().max(200, 'Bio maksimal 200 karakter').optional().nullable(),
+  // avatarUrl bisa data-URL (foto ter-upload) atau link biasa — dibatasi ukurannya biar DB gak bengkak
+  avatarUrl: z.string().max(600000, 'Ukuran foto terlalu besar, coba foto lain').optional().nullable(),
+});
+
 const reportSchema = z.object({
   title: z.string().trim().min(5, 'Judul minimal 5 karakter').max(150),
   description: z.string().trim().min(10, 'Deskripsi minimal 10 karakter').max(2000),
@@ -280,7 +290,7 @@ async function startServer() {
 
       const token = jwt.sign({ id: userId, email, role: 'user' }, JWT_SECRET, { expiresIn: '7d' });
       
-      res.json({ token, user: { id: userId, name, email, role: 'user', phone, domicile } });
+      res.json({ token, user: { id: userId, name, email, role: 'user', phone, domicile, bio: null, avatarUrl: null } });
     } catch (error: any) {
       console.error('Signup error:', error);
       if (error.message.includes('UNIQUE constraint failed')) {
@@ -290,6 +300,37 @@ async function startServer() {
       }
     }
   });
+
+  // Update profil (nama, domisili, bio, foto profil) — hanya pemilik akun sendiri yang bisa ubah
+  app.put('/api/auth/profile', requireAuth, validateBody(profileUpdateSchema), async (req: any, res) => {
+    await setupDb();
+    try {
+      const { name, domicile, bio, avatarUrl } = req.body;
+      await db.execute({
+        sql: 'UPDATE users SET name = ?, domicile = ?, bio = ?, avatar_url = ? WHERE id = ?',
+        args: [name, domicile ?? null, bio ?? null, avatarUrl ?? null, req.user.id],
+      });
+
+      const result = await db.execute({ sql: 'SELECT * FROM users WHERE id = ?', args: [req.user.id] });
+      const updated = result.rows[0];
+      res.json({
+        user: {
+          id: updated.id,
+          name: updated.name,
+          email: updated.email,
+          role: updated.role,
+          phone: updated.phone,
+          domicile: updated.domicile,
+          bio: updated.bio,
+          avatarUrl: updated.avatar_url,
+        },
+      });
+    } catch (error) {
+      console.error('Update profile error:', error);
+      res.status(500).json({ error: 'Terjadi kesalahan pada server' });
+    }
+  });
+
 
   app.post('/api/auth/login', rateLimit(10, 15 * 60 * 1000), validateBody(loginSchema), async (req, res) => {
     await setupDb();
@@ -325,7 +366,9 @@ async function startServer() {
           email: user.email, 
           role: user.role, 
           phone: user.phone, 
-          domicile: user.domicile 
+          domicile: user.domicile,
+          bio: user.bio,
+          avatarUrl: user.avatar_url,
         } 
       });
     } catch (error) {
