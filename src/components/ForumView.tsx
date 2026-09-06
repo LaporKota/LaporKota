@@ -41,6 +41,27 @@ export const ForumView: React.FC<ForumViewProps> = ({ onOpenReportModal, user })
 
   // Reply Form State
   const [replyInput, setReplyInput] = useState('');
+  const [confirmDeleteTopic, setConfirmDeleteTopic] = useState(false);
+
+  // Hapus topik forum — server yang validasi ulang (pemilik topik atau admin)
+  const handleDeleteTopic = (topicId: string) => {
+    fetch(`/api/forum/topics/${topicId}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    })
+      .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
+      .then(({ ok, data }) => {
+        if (!ok) {
+          toast.error(data.error || 'Gagal menghapus diskusi');
+          return;
+        }
+        setTopics((prev) => prev.filter((t) => t.id !== topicId));
+        setActiveTopicForModal(null);
+        setConfirmDeleteTopic(false);
+        toast.success('Diskusi berhasil dihapus.');
+      })
+      .catch(() => toast.error('Terjadi kesalahan jaringan'));
+  };
 
   // Helper: replace 1 topic di state dan di modal aktif dengan versi terbaru dari server
   const applyUpdatedTopic = (updated: ForumTopic) => {
@@ -359,12 +380,37 @@ export const ForumView: React.FC<ForumViewProps> = ({ onOpenReportModal, user })
                   DISKUSI: {activeTopicForModal.category}
                 </span>
               </div>
-              <button
-                onClick={() => setActiveTopicForModal(null)}
-                className="w-7 h-7 bg-white border border-slate-200 rounded-lg font-bold text-sm flex items-center justify-center hover:bg-rose-500 hover:text-white shadow-sm cursor-pointer"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-2">
+                {(user?.role === 'admin' || (!!user && user.id === activeTopicForModal.userId)) && (
+                  <button
+                    onClick={() => {
+                      if (!confirmDeleteTopic) {
+                        setConfirmDeleteTopic(true);
+                        return;
+                      }
+                      handleDeleteTopic(activeTopicForModal.id);
+                    }}
+                    onBlur={() => setConfirmDeleteTopic(false)}
+                    className={`px-2.5 h-7 rounded-lg font-label text-[11px] font-bold uppercase flex items-center gap-1 shadow-sm cursor-pointer transition-colors ${
+                      confirmDeleteTopic
+                        ? 'bg-rose-600 text-white hover:bg-rose-700'
+                        : 'bg-white border border-slate-200 text-rose-500 hover:bg-rose-50'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[15px]">delete</span>
+                    {confirmDeleteTopic ? 'Yakin?' : 'Hapus'}
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setActiveTopicForModal(null);
+                    setConfirmDeleteTopic(false);
+                  }}
+                  className="w-7 h-7 bg-white border border-slate-200 rounded-lg font-bold text-sm flex items-center justify-center hover:bg-rose-500 hover:text-white shadow-sm cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             {/* Scrollable Body */}
