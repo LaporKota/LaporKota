@@ -489,6 +489,7 @@ const App: React.FC = () => {
           setSelectedReport(report);
         }}
         user={user}
+        onUpdateUser={(updatedUser) => setUser(updatedUser)}
       />
 
       <VolunteerModal
