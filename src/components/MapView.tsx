@@ -1,617 +1,270 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { Report, ReportCategory, ReportStatus } from '../types';
+import { CITIES, findNearestCity } from '../data/cities';
+import { ReportLocationPrefill } from './CreateReportView';
 
 interface MapViewProps {
   reports: Report[];
   onSelectReport: (report: Report) => void;
-  onSubmitReport: (newReport: Partial<Report>) => void;
+  onCreateReportAt: (prefill: ReportLocationPrefill | null) => void;
 }
 
-export const MapView: React.FC<MapViewProps> = ({
-  reports,
-  onSelectReport,
-  onSubmitReport,
-}) => {
-  // Form State
-  const [judul, setJudul] = useState('');
-  const [kategori, setKategori] = useState<ReportCategory | ''>('');
-  const [deskripsi, setDeskripsi] = useState('');
-  const [lokasi, setLokasi] = useState('');
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formSuccess, setFormSuccess] = useState(false);
+// Style & ikon marker per kategori laporan (dipakai bareng untuk legenda & pin di peta)
+const CATEGORY_STYLE: Record<string, { color: string; icon: string; label: string }> = {
+  kebersihan: { color: '#e11d48', icon: 'delete', label: 'Sampah' },
+  drainase: { color: '#0d9488', icon: 'water_drop', label: 'Drainase' },
+  infrastruktur: { color: '#0d9488', icon: 'construction', label: 'Infrastruktur' },
+  penerangan: { color: '#0d9488', icon: 'lightbulb', label: 'Infrastruktur' },
+  ruang_hijau: { color: '#16a34a', icon: 'park', label: 'Ruang Hijau' },
+  fasilitas: { color: '#0d9488', icon: 'directions_walk', label: 'Fasilitas Umum' },
+  lainnya: { color: '#64748b', icon: 'info', label: 'Lainnya' },
+};
 
-  // Map Filter & Interaction State
-  const [mapStatusFilter, setMapStatusFilter] = useState<'all' | ReportStatus>('all');
-  const selectedCity: 'Jakarta' = 'Jakarta';
-  const [tempMarker, setTempMarker] = useState<{ topPct: number; leftPct: number } | null>(null);
-  const [activeHoverReport, setActiveHoverReport] = useState<Report | null>(null);
+function getCategoryStyle(cat: ReportCategory) {
+  return CATEGORY_STYLE[cat] || CATEGORY_STYLE.lainnya;
+}
 
-  const hasDragged = useRef(false);
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const mapContainerRef = useRef<HTMLDivElement>(null);
-
-  // Filter reports on map
-  const visibleMapReports = reports.filter((r) => {
-    if (mapStatusFilter !== 'all' && r.status !== mapStatusFilter) return false;
-    if (r.city && r.city !== selectedCity) return false;
-    return true;
+// Bikin divIcon custom (bukan icon default Leaflet) supaya konsisten dengan gaya visual LaporKota
+function buildMarkerIcon(cat: ReportCategory) {
+  const style = getCategoryStyle(cat);
+  return L.divIcon({
+    className: 'laporkota-marker',
+    html: `
+      <div style="display:flex;flex-direction:column;align-items:center;">
+        <div style="background:${style.color};border:2px solid white;border-radius:8px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,0.4);">
+          <span class="material-symbols-outlined" style="color:white;font-size:16px;">${style.icon}</span>
+        </div>
+        <div style="width:2px;height:10px;background:#1a1a1a;"></div>
+      </div>
+    `,
+    iconSize: [30, 40],
+    iconAnchor: [15, 40],
+    popupAnchor: [0, -40],
   });
+}
 
-  // Handle Map Click to place pin
-  
-  const handleMapClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!mapContainerRef.current) return;
-    const rect = mapContainerRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+const tempMarkerIcon = L.divIcon({
+  className: 'laporkota-temp-marker',
+  html: `
+    <div style="display:flex;flex-direction:column;align-items:center;">
+      <div style="background:#e11d48;color:white;border-radius:8px;padding:2px 6px;font-size:10px;font-weight:700;white-space:nowrap;margin-bottom:2px;box-shadow:0 2px 6px rgba(0,0,0,0.3);">TITIK DIPILIH</div>
+      <div style="background:#0d9488;border:2px solid white;border-radius:50%;width:20px;height:20px;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>
+    </div>
+  `,
+  iconSize: [90, 50],
+  iconAnchor: [45, 30],
+});
 
-    const leftPct = Math.max(5, Math.min(95, Math.round((x / rect.width) * 100)));
-    const topPct = Math.max(5, Math.min(95, Math.round((y / rect.height) * 100)));
-    
-    setTempMarker({ topPct, leftPct });
-    
-    const mockStreets = [
-      'Jl. Jenderal Sudirman No. 42',
-      'Jl. MH Thamrin Kav. 12',
-      'Jl. Rasuna Said, Kuningan',
-      'Jl. Gatot Subroto No. 88',
-      'Jl. Hayam Wuruk, Harmoni',
-      'Jl. Danau Sunter Utara',
-      'Jl. Boulevard Kelapa Gading',
-    ];
-    const randomStreet = mockStreets[Math.floor(Math.random() * mockStreets.length)] + `, ${selectedCity}`;
-    
-    if (!lokasi) {
-      setLokasi(randomStreet);
+// Reposisi & zoom ulang peta setiap kali kota yang dipilih berubah
+const FlyToCity: React.FC<{ center: [number, number]; zoom: number }> = ({ center, zoom }) => {
+  const map = useMap();
+  useEffect(() => {
+    map.flyTo(center, zoom, { duration: 0.8 });
+  }, [center[0], center[1], zoom]);
+  return null;
+};
+
+// Tangkap klik pada area kosong peta untuk memulai laporan baru di titik tersebut
+const ClickToReport: React.FC<{ onPick: (lat: number, lng: number) => void }> = ({ onPick }) => {
+  useMapEvents({
+    click(e) {
+      onPick(e.latlng.lat, e.latlng.lng);
+    },
+  });
+  return null;
+};
+
+export const MapView: React.FC<MapViewProps> = ({ reports, onSelectReport, onCreateReportAt }) => {
+  const [mapStatusFilter, setMapStatusFilter] = useState<'all' | ReportStatus>('all');
+  const [selectedCityName, setSelectedCityName] = useState<string>('all');
+  const [tempMarker, setTempMarker] = useState<{ lat: number; lng: number } | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
+
+  const selectedCity = CITIES.find((c) => c.name === selectedCityName) || null;
+
+  // Titik tengah gabungan Indonesia dipakai saat tab "Semua Kota" aktif
+  const overviewCenter: [number, number] = [-3.5, 112];
+  const overviewZoom = 5;
+
+  const visibleReports = useMemo(() => {
+    return reports.filter((r) => {
+      if (mapStatusFilter !== 'all' && r.status !== mapStatusFilter) return false;
+      if (selectedCityName !== 'all' && r.city !== selectedCityName) return false;
+      if (typeof r.lat !== 'number' || typeof r.lng !== 'number') return false;
+      return true;
+    });
+  }, [reports, mapStatusFilter, selectedCityName]);
+
+  const handlePickPoint = async (lat: number, lng: number) => {
+    setTempMarker({ lat, lng });
+    const city = selectedCity ? selectedCity.name : findNearestCity(lat, lng).name;
+
+    setIsLocating(true);
+    let address = `Titik terpilih (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+    try {
+      // Reverse geocoding gratis via Nominatim (OpenStreetMap) — berjalan di browser pengguna
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=17&addressdetails=1`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.display_name) address = data.display_name;
+      }
+    } catch {
+      // Diamkan saja kalau reverse geocoding gagal — fallback ke koordinat sudah cukup
+    } finally {
+      setIsLocating(false);
     }
+
+    onCreateReportAt({ lat, lng, city, address });
   };
 
-
-  // Handle file drop / upload
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        setPhotoPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        setPhotoPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  // Set sample image helper
-  const handleUseSampleImage = (categoryType: string) => {
-    const sampleImages: Record<string, string> = {
-      sampah: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCWr_lkpfQCI44JNAXYqVGOligdK6hKpa2qXvASY05dcYN1CuURLlcUnFmmexUoZNL1WR18HuYH97K4vYIPYyMgVlDEEmKAhGudGDu_O2e0D1fysBrtk7Q0JA9obSrTY2uTT8-khG8Cs_4t2B60wEMSLQGflPbV0kUVY06PUNY8ieDKTuSaS8_eYKyXIiP2RA_whGxHmUM88yCSFPM-R3giOEPjuIImwxerYR6wOASYEZWLm1Mfe5G_XQ',
-      infrastruktur_jalan: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAfwJRph6sfFILt6isCntY_ikP2Awvh53h1lah90xKwhpwV3WO8lWIasOKau4ML_JvlFw202bCxEMlAN3OwtJkEmb00wn8ctEASCUHXxMZm3W-p2z3yVCPPQb6WWp-ITHXhoNzq74iEkKs7gDTlnHHZO3vr9NfATBHtob3nDmcuwqPLqQExsNryDtWAObdbnJ4dGHYJ3IGFtLfB_7js3mqMQnhGghsT0lI94e_68ZmfMr4jA_BLy2fF9g',
-      penerangan: 'https://lh3.googleusercontent.com/aida-public/AB6AXuC5AUTQTkCc0xWxXV3epX4-PU5zsI6grRTgdaYlr6fw6oCAZtVqQBeYZLXgJuBJuo42l394HVpGkyH1lmfJAtHlgLy4KmQ9aUbbuW-qTzNV1MQ4oiWiGFHtbh6O5ABTNWQ-5R4H0dz0I1RJfnq1TPBm2z8KG_MQxNZxb4VNLHj8wSB2ROiiPker9r8v27gL_DgLw__eKljfcoHFGgC01fhrJNiQty9PtZWboQ-MnxfaC8iCDb5VWVWrpg',
-      drainase: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBoZk0bpCla6hC9BfwKahestfAWIK6K3MSEDOOdUAR3qRC7sTWJOZkVpxO4WaQdbz7T6P3tuYRX2yE9iORQTH9teBIyxyGDEbOSBUWMFlM2JKBfSLFrsfr0CrOhXYgkneuQj40QCdWhkOFNTQKCMf0MP5zOmFg5LIQ7vz6gJ8hg8re6jcgIv246unBgUEjvVSSs70ex4yU6W7MtEvmZ9TK7RNpVh-w3_y0tbWgn0mVvvPDkl9SUDbA4cA',
-      ruang_hijau: 'https://lh3.googleusercontent.com/aida-public/AB6AXuC2gQqFQHEQO9HX3UCRwGaSP7MU4VgOee0yugmDuuAr14tRs3qRb88LovdflUICNqxBg3T9FPySoebOY6o9ik9eDZwP2xVQKoC90lUX-If4yFZ7NKelIjbA6RavMDooLQ3qrcc15jlRMhnsrE9OziQbGvGDmh0F-bqatoH4xJ1rOhVqflw9sNYjNxtbEw_5ugcIaxXPqgiLNybssn1eRuF_ET_JP6pzFcXyKbCdWKvjoV6arXypXvTwHw',
-    };
-    setPhotoPreview(sampleImages[categoryType] || sampleImages.sampah);
-  };
-
-  // Submit Handler
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!judul || !kategori || !deskripsi || !lokasi) return;
-
-    setIsSubmitting(true);
-
-    const categoryMap: Record<string, { label: string; icon: string }> = {
-      sampah: { label: 'Kebersihan', icon: 'delete' },
-      ruang_hijau: { label: 'Ruang Hijau', icon: 'park' },
-      infrastruktur_jalan: { label: 'Infrastruktur', icon: 'construction' },
-      penerangan: { label: 'Infrastruktur', icon: 'lightbulb' },
-      drainase: { label: 'Drainase', icon: 'water_drop' },
-      fasilitas: { label: 'Fasilitas Umum', icon: 'directions_walk' },
-      lainnya: { label: 'Fasilitas Umum', icon: 'info' },
-    };
-
-    const catInfo = categoryMap[kategori] || { label: 'Lainnya', icon: 'report' };
-
-    const topPct = tempMarker ? tempMarker.topPct : Math.floor(Math.random() * 60) + 20;
-    const leftPct = tempMarker ? tempMarker.leftPct : Math.floor(Math.random() * 60) + 20;
-
-    const defaultImg =
-      photoPreview ||
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuCWr_lkpfQCI44JNAXYqVGOligdK6hKpa2qXvASY05dcYN1CuURLlcUnFmmexUoZNL1WR18HuYH97K4vYIPYyMgVlDEEmKAhGudGDu_O2e0D1fysBrtk7Q0JA9obSrTY2uTT8-khG8Cs_4t2B60wEMSLQGflPbV0kUVY06PUNY8ieDKTuSaS8_eYKyXIiP2RA_whGxHmUM88yCSFPM-R3giOEPjuIImwxerYR6wOASYEZWLm1Mfe5G_XQ';
-
-    setTimeout(() => {
-      onSubmitReport({
-        title: judul,
-        category: (kategori === 'infrastruktur' || kategori === 'penerangan' ? 'infrastruktur' : kategori) as any,
-        categoryLabel: catInfo.label,
-        categoryIcon: catInfo.icon,
-        description: deskripsi,
-        location: lokasi,
-        city: selectedCity,
-        lat: -6.2,
-        lng: 106.8,
-        mapTopPct: topPct,
-        mapLeftPct: leftPct,
-        timeAgo: 'Baru saja',
-        timestamp: Date.now(),
-        status: 'baru',
-        upvotes: 1,
-        hasUpvoted: true,
-        imageUrl: defaultImg,
-        priority: 'Tinggi',
-      });
-
-      setIsSubmitting(false);
-      setFormSuccess(true);
-      setJudul('');
-      setKategori('');
-      setDeskripsi('');
-      setLokasi('');
-      setPhotoPreview(null);
-      setTempMarker(null);
-
-      setTimeout(() => {
-        setFormSuccess(false);
-      }, 4000);
-    }, 600);
-  };
-
-  const getMarkerStyle = (cat: ReportCategory) => {
-    switch (cat) {
-      case 'kebersihan':
-        return {
-          bg: 'bg-rose-500 text-white',
-          border: 'border-slate-200',
-          icon: 'delete',
-        };
-      case 'drainase':
-        return {
-          bg: 'bg-primary-600 text-white',
-          border: 'border-slate-200',
-          icon: 'water_drop',
-        };
-      case 'ruang_hijau':
-        return {
-          bg: 'bg-green-600 text-white',
-          border: 'border-slate-200',
-          icon: 'park',
-        };
-      case 'infrastruktur':
-      case 'penerangan':
-      default:
-        return {
-          bg: 'bg-primary-600 text-white',
-          border: 'border-slate-200',
-          icon: cat === 'penerangan' ? 'lightbulb' : 'construction',
-        };
-    }
-  };
+  const center: [number, number] = selectedCity ? selectedCity.center : overviewCenter;
+  const zoom = selectedCity ? selectedCity.zoom : overviewZoom;
 
   return (
-    <div className="flex-grow w-full max-w-[1280px] mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col lg:flex-row gap-6 lg:gap-8 items-start">
-      {/* LEFT COLUMN: Form Section */}
-      <section className="w-full lg:w-[380px] xl:w-[420px] bg-white border border-slate-200 rounded-xl p-6 flex flex-col gap-4 shadow-lg shrink-0">
-        <h1 className="font-headline text-2xl sm:text-3xl text-slate-900 mb-1 uppercase font-bold tracking-tight">
-          BUAT LAPORAN BARU
-        </h1>
-        <p className="font-body text-sm text-slate-500 mb-2 font-medium">
-          Sampaikan keluhan Anda untuk kota yang lebih baik. Transparansi dan aksi nyata untuk lingkungan kita.
-        </p>
-
-        {formSuccess && (
-          <div className="bg-green-600 text-white border border-slate-200 rounded-xl p-3 shadow-md font-label text-sm font-medium flex items-center gap-2">
-            <span className="material-symbols-outlined text-[20px]">check_circle</span>
-            Laporan berhasil dikirim & dipublikasikan di peta!
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          {/* Judul Laporan */}
-          <div className="flex flex-col gap-1">
-            <label className="font-label text-xs text-slate-900 uppercase font-bold tracking-wider" htmlFor="judul">
-              JUDUL LAPORAN *
-            </label>
-            <input
-              id="judul"
-              type="text"
-              required
-              value={judul}
-              onChange={(e) => setJudul(e.target.value)}
-              placeholder="Beri judul singkat mengenai laporan Anda"
-              className="border border-slate-200 rounded-lg rounded-none p-2.5 focus:border-primary-600 focus:ring-0 transition-all font-body text-sm bg-white shadow-inner outline-none"
-            />
-          </div>
-
-          {/* Kategori */}
-          <div className="flex flex-col gap-1">
-            <label className="font-label text-xs text-slate-900 uppercase font-bold tracking-wider" htmlFor="kategori">
-              KATEGORI *
-            </label>
-            <select
-              id="kategori"
-              required
-              value={kategori}
-              onChange={(e) => {
-                const val = e.target.value as any;
-                setKategori(val);
-                if (!photoPreview && val) {
-                  handleUseSampleImage(val);
-                }
-              }}
-              className="border border-slate-200 rounded-lg rounded-none p-2.5 focus:border-primary-600 focus:ring-0 transition-all font-body text-sm bg-white shadow-inner outline-none cursor-pointer"
-            >
-              <option value="" disabled>
-                Pilih Kategori
-              </option>
-              <option value="sampah">Sampah & Kebersihan</option>
-              <option value="ruang_hijau">Ruang Hijau & Taman</option>
-              <option value="infrastruktur_jalan">Infrastruktur Jalan</option>
-              <option value="penerangan">Penerangan Jalan (PJU)</option>
-              <option value="drainase">Drainase & Saluran Air</option>
-              <option value="fasilitas">Fasilitas Umum & Trotoar</option>
-              <option value="lainnya">Lainnya</option>
-            </select>
-          </div>
-
-          {/* Deskripsi Masalah */}
-          <div className="flex flex-col gap-1">
-            <label className="font-label text-xs text-slate-900 uppercase font-bold tracking-wider" htmlFor="deskripsi">
-              DESKRIPSI MASALAH *
-            </label>
-            <textarea
-              id="deskripsi"
-              required
-              rows={3}
-              value={deskripsi}
-              onChange={(e) => setDeskripsi(e.target.value)}
-              placeholder="Jelaskan secara detail masalah yang Anda temukan..."
-              className="border border-slate-200 rounded-lg rounded-none p-2.5 focus:border-primary-600 focus:ring-0 transition-all font-body text-sm resize-none bg-white shadow-inner outline-none"
-            />
-          </div>
-
-          {/* Alamat/Lokasi */}
-          <div className="flex flex-col gap-1">
-            <div className="flex justify-between items-center">
-              <label className="font-label text-xs text-slate-900 uppercase font-bold tracking-wider" htmlFor="lokasi">
-                ALAMAT/LOKASI *
-              </label>
-              <span className="text-[11px] font-label uppercase text-primary-600 font-bold">
-                (Klik peta untuk memilih)
-              </span>
-            </div>
-            <div className="relative">
-              <input
-                id="lokasi"
-                type="text"
-                required
-                value={lokasi}
-                onChange={(e) => setLokasi(e.target.value)}
-                placeholder="Ketik lokasi atau pilih di peta"
-                className="w-full border border-slate-200 rounded-lg rounded-none p-2.5 pl-9 focus:border-primary-600 focus:ring-0 transition-all font-body text-sm bg-white shadow-inner outline-none"
-              />
-              <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-900 text-[18px]">
-                location_on
-              </span>
-            </div>
-          </div>
-
-          {/* Bukti Foto */}
-          <div className="flex flex-col gap-1">
-            <div className="flex justify-between items-center">
-              <label className="font-label text-xs text-slate-900 uppercase font-bold tracking-wider">
-                BUKTI FOTO *
-              </label>
-              {photoPreview && (
-                <button
-                  type="button"
-                  onClick={() => setPhotoPreview(null)}
-                  className="text-xs text-rose-500 font-bold uppercase underline cursor-pointer"
-                >
-                  Hapus Foto
-                </button>
-              )}
-            </div>
-
-            <input
-              type="file"
-              ref={fileInputRef}
-              accept="image/*"
-              className="hidden"
-              onChange={handleFileChange}
-            />
-
-            {photoPreview ? (
-              <div className="relative border border-slate-200 rounded-lg bg-black h-36 overflow-hidden shadow-sm group">
-                <img
-                  src={photoPreview}
-                  alt="Bukti foto laporan"
-                  className="w-full h-full object-cover"
-                />
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="absolute bottom-2 right-2 bg-white border border-slate-200 rounded-lg px-2 py-1 font-label text-xs font-medium shadow-sm"
-                >
-                  Ganti Foto
-                </button>
-              </div>
-            ) : (
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                onDragOver={handleDragOver}
-                onDrop={handleDrop}
-                className="border-[3px] border-dashed border-slate-200 rounded-none p-5 flex flex-col items-center justify-center gap-1.5 bg-white hover:bg-slate-100 transition-colors cursor-pointer group"
-              >
-                <span className="material-symbols-outlined text-[32px] text-slate-500 group-hover:text-primary-600 transition-colors">
-                  cloud_upload
-                </span>
-                <p className="font-label text-xs sm:text-sm text-slate-500 group-hover:text-primary-600 text-center uppercase font-bold">
-                  KLIK UNTUK UPLOAD ATAU DRAG &amp; DROP
-                </p>
-                <p className="font-label text-[11px] text-slate-900 uppercase font-semibold">
-                  JPG, PNG, MAKSIMAL 5MB
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="mt-1 bg-primary-600 text-white font-label text-sm sm:text-base py-3 rounded-none border-[4px] border-slate-200 hover:bg-primary-700 transition-colors w-full flex items-center justify-center gap-2 uppercase font-bold shadow-md active:translate-y-1 active:translate-x-1 active:shadow-none cursor-pointer disabled:opacity-50"
-          >
-            {isSubmitting ? (
-              <>
-                <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
-                MENGIRIM LAPORAN...
-              </>
-            ) : (
-              <>
-                KIRIM LAPORAN
-                <span className="material-symbols-outlined text-[18px]">send</span>
-              </>
-            )}
-          </button>
-        </form>
-      </section>
-
-      {/* RIGHT COLUMN: Map & Filter Section */}
-      <section className="w-full lg:flex-1 flex flex-col gap-4">
-        {/* Map Header & Filter Bar */}
+    <div className="flex-grow w-full flex flex-col">
+      {/* Toolbar: filter status, pilih kota, & CTA buat laporan */}
+      <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 py-4 flex flex-col gap-3">
         <div className="bg-white border border-slate-200 rounded-xl p-3 flex flex-wrap gap-3 items-center justify-between shadow-md">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-label text-xs sm:text-sm text-slate-900 flex items-center gap-1 uppercase font-bold tracking-wider">
               <span className="material-symbols-outlined text-[18px]">filter_list</span> FILTER:
             </span>
-
             <div className="flex gap-1.5 overflow-x-auto pb-0.5">
-              <button
-                onClick={() => setMapStatusFilter('all')}
-                className={`px-3 py-1 border border-slate-200 rounded-lg font-label text-xs whitespace-nowrap uppercase font-bold cursor-pointer transition-all ${
-                  mapStatusFilter === 'all'
-                    ? 'bg-primary-600 text-white shadow-sm'
-                    : 'bg-white text-slate-500 hover:bg-slate-100'
-                }`}
-              >
-                Semua
-              </button>
-              <button
-                onClick={() => setMapStatusFilter('baru')}
-                className={`px-3 py-1 border border-slate-200 rounded-lg font-label text-xs whitespace-nowrap uppercase font-bold cursor-pointer transition-all ${
-                  mapStatusFilter === 'baru'
-                    ? 'bg-primary-600 text-white shadow-sm'
-                    : 'bg-white text-slate-500 hover:bg-rose-50'
-                }`}
-              >
-                Baru
-              </button>
-              <button
-                onClick={() => setMapStatusFilter('diproses')}
-                className={`px-3 py-1 border border-slate-200 rounded-lg font-label text-xs whitespace-nowrap uppercase font-bold cursor-pointer transition-all ${
-                  mapStatusFilter === 'diproses'
-                    ? 'bg-primary-600 text-white shadow-sm'
-                    : 'bg-white text-slate-500 hover:bg-primary-100'
-                }`}
-              >
-                Diproses
-              </button>
-              <button
-                onClick={() => setMapStatusFilter('selesai')}
-                className={`px-3 py-1 border border-slate-200 rounded-lg font-label text-xs whitespace-nowrap uppercase font-bold cursor-pointer transition-all ${
-                  mapStatusFilter === 'selesai'
-                    ? 'bg-green-600 text-white shadow-sm'
-                    : 'bg-white text-slate-500 hover:bg-green-100'
-                }`}
-              >
-                Selesai
-              </button>
+              {(['all', 'baru', 'diproses', 'selesai'] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setMapStatusFilter(f)}
+                  className={`px-3 py-1 border border-slate-200 rounded-lg font-label text-xs whitespace-nowrap uppercase font-bold cursor-pointer transition-all ${
+                    mapStatusFilter === f
+                      ? f === 'selesai'
+                        ? 'bg-green-600 text-white shadow-sm'
+                        : 'bg-primary-600 text-white shadow-sm'
+                      : 'bg-white text-slate-500 hover:bg-slate-100'
+                  }`}
+                >
+                  {f === 'all' ? 'Semua' : f}
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* City Label (locked to Jakarta) */}
-          <div className="flex items-center gap-2">
-            <span className="font-label text-xs font-medium text-slate-900 hidden sm:inline">
-              KOTA:
-            </span>
-            <span className="border border-slate-200 rounded-lg bg-white px-2 py-1 font-label text-xs font-bold text-slate-900 shadow-sm">
-              Jakarta
-            </span>
+          <button
+            onClick={() => onCreateReportAt(null)}
+            className="px-4 py-2 bg-primary-600 text-white border border-slate-200 rounded-lg font-label text-xs sm:text-sm font-bold uppercase shadow-md hover:bg-primary-700 flex items-center gap-1.5 cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[18px]">add_location_alt</span>
+            Buat Laporan
+          </button>
+        </div>
+
+        {/* City Tabs — 5 kota + tampilan gabungan */}
+        <div className="bg-white border border-slate-200 rounded-xl p-2 flex flex-wrap gap-1.5 shadow-md overflow-x-auto">
+          <button
+            onClick={() => setSelectedCityName('all')}
+            className={`px-3 py-1.5 rounded-lg font-label text-xs whitespace-nowrap uppercase font-bold cursor-pointer transition-all ${
+              selectedCityName === 'all'
+                ? 'bg-slate-900 text-white shadow-sm'
+                : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'
+            }`}
+          >
+            🇮🇩 Semua Kota
+          </button>
+          {CITIES.map((c) => (
+            <button
+              key={c.name}
+              onClick={() => setSelectedCityName(c.name)}
+              className={`px-3 py-1.5 rounded-lg font-label text-xs whitespace-nowrap uppercase font-bold cursor-pointer transition-all ${
+                selectedCityName === c.name
+                  ? 'bg-primary-600 text-white shadow-sm'
+                  : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'
+              }`}
+            >
+              {c.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Full Map */}
+      <div className="w-full flex-grow relative" style={{ minHeight: '640px' }}>
+        <div className="absolute top-3 left-3 z-[1000] bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 shadow-md flex items-center gap-2">
+          <span className="w-2.5 h-2.5 bg-rose-500 rounded-full animate-pulse"></span>
+          <span className="font-label text-xs font-medium text-slate-900">
+            Peta Interaktif {selectedCityName === 'all' ? 'Indonesia' : selectedCityName} • {visibleReports.length} Titik Laporan
+          </span>
+        </div>
+
+        <div className="absolute top-3 right-3 z-[1000] bg-white border border-slate-200 rounded-lg px-3 py-2 shadow-md max-w-[220px] hidden sm:block">
+          <p className="font-label text-[11px] font-bold text-slate-900 uppercase mb-0.5">
+            {isLocating ? 'Mencari alamat...' : 'Klik di peta'}
+          </p>
+          <p className="font-body text-[11px] text-slate-500">
+            Klik titik mana pun di peta untuk langsung membuat laporan di lokasi itu.
+          </p>
+        </div>
+
+        {/* Legend */}
+        <div className="absolute bottom-3 right-3 z-[1000] bg-slate-50 border border-slate-200 rounded-xl shadow-lg p-3 flex flex-col gap-1.5">
+          <div className="font-label text-xs font-bold text-slate-900 uppercase tracking-wider border-b-2 border-slate-200 pb-1">
+            KATEGORI
+          </div>
+          <div className="flex items-center gap-2 font-label text-[11px] text-slate-900 font-bold uppercase">
+            <div className="w-3.5 h-3.5 rounded border-2 border-white shadow" style={{ background: '#e11d48' }}></div> Sampah
+          </div>
+          <div className="flex items-center gap-2 font-label text-[11px] text-slate-900 font-bold uppercase">
+            <div className="w-3.5 h-3.5 rounded border-2 border-white shadow" style={{ background: '#0d9488' }}></div> Drainase / Infrastruktur
+          </div>
+          <div className="flex items-center gap-2 font-label text-[11px] text-slate-900 font-bold uppercase">
+            <div className="w-3.5 h-3.5 rounded border-2 border-white shadow" style={{ background: '#16a34a' }}></div> Ruang Hijau
           </div>
         </div>
 
-        {/* Map Canvas View */}
-        <div
-          ref={mapContainerRef}
-          onClick={handleMapClick}
-          className="flex-grow bg-slate-100 border border-slate-200 rounded-xl shadow-lg overflow-hidden relative w-full aspect-[4/3] max-h-[640px] select-none cursor-crosshair"
-          title="Klik pada peta untuk menancapkan pin lokasi laporan baru"
+        <MapContainer
+          center={center}
+          zoom={zoom}
+          scrollWheelZoom
+          style={{ width: '100%', height: '100%', minHeight: '640px' }}
+          className="cursor-crosshair"
         >
-          {/* Map Base Image (Desaturated High-Contrast Urban Map) */}
-          <div
-            className="absolute inset-0 bg-cover bg-center grayscale contrast-125"
-            style={{
-              backgroundImage: `url('https://lh3.googleusercontent.com/aida-public/AB6AXuCMcM8sesk3dZJlpwBHowman0QdJSLX68cvdA-rKjlhVQOfzdLnhrh-Lz7AkxpfrpkIHlCgEB38fD3QG4_LjTQbbYpwX1tKLlBxI2xP21NG85nZLJpvM_awWvdzzedsuQ_3H6VlFtKQGfwMkepdI0VD4yPRpF1PCKqOriOtTBJbnbMH3sva1DiTG045U4CC0VeE3uWEPEzxCjMFdjyC0yNWIrAqoqm6sgnzF6ftjCGwx5kR0Ye3FpK1ug')`,
-            }}
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
 
-          {/* Interactive Map Overlay Area */}
-          {/* Static Overlay (Guide Bar) */}
-          <div className="absolute inset-0 pointer-events-none">
-            {/* Map Top Guide Bar */}
-            <div className="absolute top-3 left-3 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 shadow-sm flex items-center gap-2 pointer-events-none z-10">
-              <span className="w-2.5 h-2.5 bg-rose-500 rounded-full animate-pulse"></span>
-              <span className="font-label text-xs font-medium text-slate-900">
-                Peta Interaktif {selectedCity} • {visibleMapReports.length} Titik Laporan
-              </span>
-            </div>
-            </div>
-            
-            {/* Interactive Markers Overlay Area */}
-            <div className="absolute inset-0">
-              {/* Click-to-Pin Temporary Marker */}
-            {tempMarker && (
-              <div
-                style={{
-                  top: `${tempMarker.topPct}%`,
-                  left: `${tempMarker.leftPct}%`,
-                  transform: 'translate(-50%, -100%)',
-                }}
-                className="absolute flex flex-col items-center z-30 pointer-events-none animate-bounce"
-              >
-                <div className="bg-rose-500 text-white border border-slate-200 rounded-xl px-2 py-1 text-[11px] font-label font-bold uppercase shadow-sm whitespace-nowrap mb-1">
-                  Titik Baru Ditentukan!
-                </div>
-                <div className="bg-primary-600 text-white rounded-full border-2 border-white rounded-lg p-1.5 shadow-sm flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[18px]">add_location</span>
-                </div>
-                <div className="w-[3px] h-6 bg-slate-900 -mt-0.5"></div>
-                <div className="w-3 h-3 border border-slate-200 rounded-lg bg-primary-600"></div>
-              </div>
-            )}
+          <FlyToCity center={center} zoom={zoom} />
+          <ClickToReport onPick={handlePickPoint} />
 
-            {/* Render Map Reports Markers */}
-            {visibleMapReports.map((report) => {
-              const markerStyle = getMarkerStyle(report.category);
-              const isHovered = activeHoverReport?.id === report.id;
+          {tempMarker && <Marker position={[tempMarker.lat, tempMarker.lng]} icon={tempMarkerIcon} />}
 
-              return (
-                <div
-                  key={report.id}
-                  style={{
-                    top: `${report.mapTopPct}%`,
-                    left: `${report.mapLeftPct}%`,
-                    transform: 'translate(-50%, -100%)',
-                  }}
-                  onMouseEnter={() => setActiveHoverReport(report)}
-                  onMouseLeave={() => setActiveHoverReport(null)}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSelectReport(report);
-                  }}
-                  className="absolute flex flex-col items-center cursor-pointer group z-20"
-                >
-                  {/* Pin Flag Icon */}
-                  <div
-                    className={`${markerStyle.bg} border border-slate-200 rounded-lg p-1.5 group-hover:scale-125 transition-transform relative z-10 flex items-center justify-center shadow-md`}
+          {visibleReports.map((report) => (
+            <Marker
+              key={report.id}
+              position={[report.lat, report.lng]}
+              icon={buildMarkerIcon(report.category)}
+              eventHandlers={{ click: () => onSelectReport(report) }}
+            >
+              <Popup>
+                <div className="flex flex-col gap-1 w-[180px]">
+                  <img src={report.imageUrl} alt={report.title} className="w-full h-20 object-cover rounded mb-1" />
+                  <span className="font-bold text-xs">{report.title}</span>
+                  <span className="text-[11px] text-slate-500">{report.location}</span>
+                  <button
+                    onClick={() => onSelectReport(report)}
+                    className="mt-1 bg-primary-600 text-white text-[11px] font-bold uppercase rounded px-2 py-1"
                   >
-                    <span className="material-symbols-outlined text-[16px] font-bold">
-                      {markerStyle.icon}
-                    </span>
-                  </div>
-                  {/* Pole */}
-                  <div className="w-[3px] h-6 bg-slate-900 -mt-1 relative z-0"></div>
-                  {/* Base */}
-                  <div
-                    className={`w-3 h-3 border-[2px] border-slate-200 ${
-                      report.category === 'kebersihan'
-                        ? 'bg-rose-500'
-                        : report.category === 'drainase'
-                        ? 'bg-primary-600'
-                        : report.category === 'ruang_hijau'
-                        ? 'bg-green-600'
-                        : 'bg-primary-600'
-                    }`}
-                  ></div>
-
-                  {/* Hover Popup */}
-                  <div
-                    className={`absolute bottom-full mb-3 w-[220px] bg-white border border-slate-200 rounded-xl shadow-lg p-2 flex flex-col gap-1.5 z-40 transition-all ${
-                      isHovered
-                        ? 'opacity-100 scale-100 pointer-events-auto'
-                        : 'opacity-0 scale-95 pointer-events-none'
-                    }`}
-                  >
-                    <img
-                      src={report.imageUrl}
-                      alt={report.title}
-                      className="w-full h-[80px] object-cover border-[2px] border-slate-200 grayscale"
-                    />
-                    <div className="font-label text-xs font-bold text-slate-900 uppercase tracking-tight line-clamp-1">
-                      {report.title}
-                    </div>
-                    <div className="flex items-center justify-between text-[11px] font-body text-slate-500">
-                      <span className="truncate">{report.location}</span>
-                    </div>
-                    <div className="flex items-center justify-between mt-1 pt-1 border-t-2 border-slate-200">
-                      <span
-                        className={`text-[10px] px-2 py-0.5 font-bold uppercase border border-slate-200 rounded-md shadow-sm ${
-                          report.status === 'baru'
-                            ? 'bg-primary-600 text-white'
-                            : report.status === 'diproses'
-                            ? 'bg-primary-600 text-white'
-                            : 'bg-green-600 text-white'
-                        }`}
-                      >
-                        {report.status}
-                      </span>
-                      <span className="font-label text-xs font-bold text-slate-900 flex items-center gap-0.5">
-                        <span className="material-symbols-outlined text-[14px]">thumb_up</span>
-                        {report.upvotes}
-                      </span>
-                    </div>
-                  </div>
+                    Lihat Detail
+                  </button>
                 </div>
-              );
-            })}
-
-            
-          {/* Legend Overlay on Map (Bottom Right) */}
-            <div className="absolute bottom-3 right-3 bg-slate-50 border border-slate-200 rounded-xl shadow-lg p-3 pointer-events-auto flex flex-col gap-2 z-20">
-              <div className="font-label text-xs font-bold text-slate-900 uppercase tracking-wider border-b-[2px] border-slate-200 pb-1">
-                KATEGORI
-              </div>
-              <div className="flex items-center gap-2 font-label text-[11px] text-slate-900 font-bold uppercase">
-                <div className="w-3.5 h-3.5 border border-slate-200 rounded-lg bg-rose-500"></div> Sampah
-              </div>
-              <div className="flex items-center gap-2 font-label text-[11px] text-slate-900 font-bold uppercase">
-                <div className="w-3.5 h-3.5 border border-slate-200 rounded-lg bg-primary-600"></div> Drainase
-              </div>
-              <div className="flex items-center gap-2 font-label text-[11px] text-slate-900 font-bold uppercase">
-                <div className="w-3.5 h-3.5 border border-slate-200 rounded-lg bg-primary-600"></div> Infrastruktur
-              </div>
-              <div className="flex items-center gap-2 font-label text-[11px] text-slate-900 font-bold uppercase">
-                <div className="w-3.5 h-3.5 border border-slate-200 rounded-lg bg-green-600"></div> Ruang Hijau
-              </div>
-            </div></div>
-        </div>
-      </section>
+              </Popup>
+            </Marker>
+          ))}
+        </MapContainer>
+      </div>
     </div>
   );
 };
