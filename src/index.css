@@ -13,6 +13,16 @@
   --color-primary-950: #042f2e;
 }
 
+/* Kunci z-index Leaflet supaya kontrol peta (tombol zoom, dll) tidak pernah
+   menembus / menutupi navbar (header pakai z-50). Jaga-jaga di luar 'isolate'
+   pada wrapper peta di MapView.tsx. */
+.leaflet-pane,
+.leaflet-top,
+.leaflet-bottom,
+.leaflet-control {
+  z-index: 40 !important;
+}
+
 
 @layer base {
   :root {
