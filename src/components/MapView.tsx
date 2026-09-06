@@ -5,6 +5,7 @@ import 'leaflet/dist/leaflet.css';
 import { Report, ReportCategory, ReportStatus } from '../types';
 import { CITIES, findNearestCity } from '../data/cities';
 import { ReportLocationPrefill } from './CreateReportView';
+import { INDONESIA_BOUNDS, reverseGeocode, getCurrentPosition } from '../utils/geo';
 
 interface MapViewProps {
   reports: Report[];
@@ -70,8 +71,27 @@ const tempMarkerIcon = L.divIcon({
   iconAnchor: [45, 30],
 });
 
-// Batas wilayah Indonesia — peta tidak akan bisa digeser/di-zoom keluar dari area ini
-const INDONESIA_BOUNDS = L.latLngBounds([-11.5, 94.0], [6.5, 141.5]);
+// Pin "ANDA DI SINI" — nempel terus di peta (beda dari tempMarkerIcon yang cuma titik sementara
+// sebelum lompat ke form). Dibuat dengan efek denyut (pulse) biar gampang dikenali.
+const myLocationMarkerIcon = L.divIcon({
+  className: 'laporkota-my-location-marker',
+  html: `
+    <div style="display:flex;flex-direction:column;align-items:center;">
+      <div style="background:#2563eb;color:white;border-radius:8px;padding:2px 6px;font-size:10px;font-weight:700;white-space:nowrap;margin-bottom:2px;box-shadow:0 2px 6px rgba(0,0,0,0.3);">ANDA DI SINI</div>
+      <div style="position:relative;width:22px;height:22px;display:flex;align-items:center;justify-content:center;">
+        <div class="laporkota-pulse-ring" style="position:absolute;width:22px;height:22px;border-radius:50%;background:#2563eb;opacity:0.4;"></div>
+        <div style="position:relative;background:#2563eb;border:2px solid white;border-radius:50%;width:14px;height:14px;box-shadow:0 2px 6px rgba(0,0,0,0.4);"></div>
+      </div>
+    </div>
+    <style>
+      @keyframes laporkota-pulse { 0% { transform: scale(0.6); opacity: 0.6; } 100% { transform: scale(2.2); opacity: 0; } }
+      .laporkota-pulse-ring { animation: laporkota-pulse 1.6s ease-out infinite; }
+    </style>
+  `,
+  iconSize: [90, 50],
+  iconAnchor: [45, 30],
+  popupAnchor: [0, -40],
+});
 
 // Reposisi & zoom ulang peta setiap kali kota yang dipilih berubah.
 // Kalau `bounds` diisi (mode "Semua Kota"), peta akan fit ke seluruh wilayah Indonesia.
@@ -117,7 +137,9 @@ export const MapView: React.FC<MapViewProps> = ({ reports, onSelectReport, onCre
   const [selectedCityName, setSelectedCityName] = useState<string>('all');
   const [tempMarker, setTempMarker] = useState<{ lat: number; lng: number } | null>(null);
   const [isLocating, setIsLocating] = useState(false);
-  const [myLocation, setMyLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [myLocation, setMyLocation] = useState<{ lat: number; lng: number; address: string; city: string } | null>(
+    null
+  );
   const [isGettingGeo, setIsGettingGeo] = useState(false);
 
   const selectedCity = CITIES.find((c) => c.name === selectedCityName) || null;
@@ -136,54 +158,43 @@ export const MapView: React.FC<MapViewProps> = ({ reports, onSelectReport, onCre
   }, [reports, mapStatusFilter, selectedCityName]);
 
   const handlePickPoint = async (lat: number, lng: number) => {
-    setTempMarker({ lat, lng });
-    const city = selectedCity ? selectedCity.name : findNearestCity(lat, lng).name;
-
     setIsLocating(true);
-    let address = `Titik terpilih (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
-    try {
-      // Reverse geocoding gratis via Nominatim (OpenStreetMap) — berjalan di browser pengguna
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=17&addressdetails=1`
+    const geo = await reverseGeocode(lat, lng);
+    setIsLocating(false);
+
+    if (!geo.isIndonesia) {
+      alert(
+        'Titik yang dipilih berada di luar wilayah Indonesia. LaporKota hanya menerima laporan untuk lokasi di dalam Indonesia — silakan pilih titik lain di peta.'
       );
-      if (res.ok) {
-        const data = await res.json();
-        if (data?.display_name) address = data.display_name;
-      }
-    } catch {
-      // Diamkan saja kalau reverse geocoding gagal — fallback ke koordinat sudah cukup
-    } finally {
-      setIsLocating(false);
-    }
-
-    onCreateReportAt({ lat, lng, city, address });
-  };
-
-  // Deteksi lokasi pengguna via GPS/browser lalu langsung siapkan laporan di titik itu
-  const handleLocateMe = () => {
-    if (!('geolocation' in navigator)) {
-      alert('Browser Anda tidak mendukung deteksi lokasi otomatis. Silakan klik langsung di peta.');
       return;
     }
 
+    setTempMarker({ lat, lng });
+    const city = geo.cityGuess || (selectedCity ? selectedCity.name : findNearestCity(lat, lng).name);
+    onCreateReportAt({ lat, lng, city, address: geo.address });
+  };
+
+  // Deteksi lokasi pengguna via GPS/browser lalu TAMPILKAN pin "ANDA DI SINI" di peta.
+  // Tidak langsung lompat ke form — biar user sempat lihat posisinya dulu di peta,
+  // baru lapor lewat popup pin ini kalau memang mau.
+  const handleLocateMe = async () => {
     setIsGettingGeo(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude, longitude } = pos.coords;
-        setIsGettingGeo(false);
-        setMyLocation({ lat: latitude, lng: longitude });
-        handlePickPoint(latitude, longitude);
-      },
-      (err) => {
-        setIsGettingGeo(false);
-        const message =
-          err.code === err.PERMISSION_DENIED
-            ? 'Akses lokasi ditolak. Aktifkan izin lokasi di browser untuk pakai fitur ini, atau klik langsung di peta.'
-            : 'Gagal mendapatkan lokasi Anda. Coba lagi atau klik langsung di peta.';
-        alert(message);
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
+    try {
+      const { lat, lng } = await getCurrentPosition();
+      const geo = await reverseGeocode(lat, lng);
+
+      if (!geo.isIndonesia) {
+        alert('Lokasi Anda terdeteksi di luar Indonesia. LaporKota hanya menerima laporan untuk lokasi di dalam Indonesia.');
+        return;
+      }
+
+      const city = geo.cityGuess || findNearestCity(lat, lng).name;
+      setMyLocation({ lat, lng, address: geo.address, city });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Gagal mendapatkan lokasi Anda.');
+    } finally {
+      setIsGettingGeo(false);
+    }
   };
 
   const center: [number, number] = selectedCity ? selectedCity.center : overviewCenter;
@@ -239,7 +250,7 @@ export const MapView: React.FC<MapViewProps> = ({ reports, onSelectReport, onCre
           </div>
         </div>
 
-        {/* City Tabs — 5 kota + tampilan gabungan */}
+        {/* City Tabs — semua kota + tampilan gabungan (scroll ke samping kalau kepanjangan) */}
         <div className="bg-white border border-slate-200 rounded-xl p-2 flex flex-wrap gap-1.5 shadow-md overflow-x-auto">
           <button
             onClick={() => setSelectedCityName('all')}
@@ -327,6 +338,30 @@ export const MapView: React.FC<MapViewProps> = ({ reports, onSelectReport, onCre
           <FlyToPoint point={myLocation} />
 
           {tempMarker && <Marker position={[tempMarker.lat, tempMarker.lng]} icon={tempMarkerIcon} />}
+
+          {myLocation && (
+            <Marker position={[myLocation.lat, myLocation.lng]} icon={myLocationMarkerIcon}>
+              <Popup>
+                <div className="flex flex-col gap-1 w-[200px]">
+                  <span className="font-bold text-xs text-blue-600">📍 Anda di sini</span>
+                  <span className="text-[11px] text-slate-500">{myLocation.address}</span>
+                  <button
+                    onClick={() =>
+                      onCreateReportAt({
+                        lat: myLocation.lat,
+                        lng: myLocation.lng,
+                        city: myLocation.city,
+                        address: myLocation.address,
+                      })
+                    }
+                    className="mt-1 bg-primary-600 text-white text-[11px] font-bold uppercase rounded px-2 py-1"
+                  >
+                    Buat Laporan di Sini
+                  </button>
+                </div>
+              </Popup>
+            </Marker>
+          )}
 
           {visibleReports.map((report) => (
             <Marker
