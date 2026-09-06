@@ -1,6 +1,7 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Report, User } from '../types';
-import { CITIES } from '../data/cities';
+import { CITIES, findNearestCity } from '../data/cities';
+import { reverseGeocode, getCurrentPosition } from '../utils/geo';
 
 export interface ReportLocationPrefill {
   lat: number;
@@ -34,6 +35,78 @@ export const CreateReportView: React.FC<CreateReportViewProps> = ({
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formSuccess, setFormSuccess] = useState(false);
+
+  // Koordinat GPS asli (dari peta ATAU dari deteksi lokasi otomatis) — dipakai saat kirim laporan.
+  // Kalau kosong (user isi kota/alamat manual tanpa pilih di peta/GPS), koordinat acak sekitar
+  // pusat kota tetap dipakai sebagai fallback seperti sebelumnya.
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(
+    initialLocation ? { lat: initialLocation.lat, lng: initialLocation.lng } : null
+  );
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+  const [locationSource, setLocationSource] = useState<'peta' | 'gps' | null>(initialLocation ? 'peta' : null);
+  const [locationError, setLocationError] = useState<string | null>(null);
+
+  // Deteksi lokasi pengguna secara otomatis begitu form dibuka — TAPI hanya kalau lokasi belum
+  // ditentukan lewat peta (initialLocation). Kalau browser menolak izin lokasi, gagal senyap saja
+  // (user tetap bisa isi manual atau pakai tombol "Pilih di peta").
+  useEffect(() => {
+    if (initialLocation) return;
+
+    let cancelled = false;
+    const detect = async () => {
+      setIsDetectingLocation(true);
+      try {
+        const { lat, lng } = await getCurrentPosition();
+        const geo = await reverseGeocode(lat, lng);
+        if (cancelled) return;
+
+        if (!geo.isIndonesia) {
+          setLocationError('Lokasi Anda terdeteksi di luar Indonesia. Silakan isi kota & alamat secara manual.');
+          return;
+        }
+
+        setCoords({ lat, lng });
+        setLokasi(geo.address);
+        setKota(geo.cityGuess || findNearestCity(lat, lng).name);
+        setLocationSource('gps');
+      } catch {
+        // Diamkan saja — user tinggal isi manual atau pilih lewat peta
+      } finally {
+        if (!cancelled) setIsDetectingLocation(false);
+      }
+    };
+
+    detect();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Tombol manual untuk mendeteksi ulang / mencoba lagi kapan saja
+  const handleUseMyLocation = async () => {
+    setIsDetectingLocation(true);
+    setLocationError(null);
+    try {
+      const { lat, lng } = await getCurrentPosition();
+      const geo = await reverseGeocode(lat, lng);
+
+      if (!geo.isIndonesia) {
+        setLocationError('Lokasi Anda terdeteksi di luar Indonesia. Silakan isi kota & alamat secara manual.');
+        return;
+      }
+
+      setCoords({ lat, lng });
+      setLokasi(geo.address);
+      setKota(geo.cityGuess || findNearestCity(lat, lng).name);
+      setLocationSource('gps');
+      onClearInitialLocation();
+    } catch (err) {
+      setLocationError(err instanceof Error ? err.message : 'Gagal mendapatkan lokasi Anda.');
+    } finally {
+      setIsDetectingLocation(false);
+    }
+  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -88,8 +161,8 @@ export const CreateReportView: React.FC<CreateReportViewProps> = ({
     const catInfo = categoryMap[kategori] || { value: 'lainnya', label: 'Lainnya', icon: 'report' };
     const cityConfig = CITIES.find((c) => c.name === kota) || CITIES[0];
 
-    const lat = initialLocation?.lat ?? cityConfig.center[0] + (Math.random() - 0.5) * 0.03;
-    const lng = initialLocation?.lng ?? cityConfig.center[1] + (Math.random() - 0.5) * 0.03;
+    const lat = coords?.lat ?? cityConfig.center[0] + (Math.random() - 0.5) * 0.03;
+    const lng = coords?.lng ?? cityConfig.center[1] + (Math.random() - 0.5) * 0.03;
 
     const defaultImg =
       photoPreview ||
@@ -127,6 +200,8 @@ export const CreateReportView: React.FC<CreateReportViewProps> = ({
       setDeskripsi('');
       setLokasi('');
       setPhotoPreview(null);
+      setCoords(null);
+      setLocationSource(null);
       onClearInitialLocation();
 
       setTimeout(() => setFormSuccess(false), 4000);
@@ -165,6 +240,30 @@ export const CreateReportView: React.FC<CreateReportViewProps> = ({
               <span className="font-bold">Lokasi dipilih dari peta</span> ({initialLocation.city}). Sudah otomatis
               diisi di bawah — silakan sesuaikan alamat kalau perlu.
             </div>
+          </div>
+        )}
+
+        {!initialLocation && isDetectingLocation && (
+          <div className="bg-slate-100 border border-slate-200 rounded-lg p-3 flex items-center gap-2">
+            <span className="material-symbols-outlined text-[18px] text-slate-500 animate-spin">progress_activity</span>
+            <div className="text-xs font-body text-slate-900">Mendeteksi lokasi Anda saat ini...</div>
+          </div>
+        )}
+
+        {!initialLocation && !isDetectingLocation && locationSource === 'gps' && (
+          <div className="bg-primary-50 border border-primary-600 rounded-lg p-3 flex items-start gap-2">
+            <span className="material-symbols-outlined text-[18px] text-primary-600 mt-0.5">my_location</span>
+            <div className="text-xs font-body text-slate-900">
+              <span className="font-bold">Lokasi Anda saat ini terdeteksi otomatis</span> ({kota}). Sudah otomatis
+              diisi di bawah — silakan sesuaikan alamat kalau perlu.
+            </div>
+          </div>
+        )}
+
+        {!initialLocation && !isDetectingLocation && locationError && (
+          <div className="bg-rose-50 border border-rose-500 rounded-lg p-3 flex items-start gap-2">
+            <span className="material-symbols-outlined text-[18px] text-rose-500 mt-0.5">error</span>
+            <div className="text-xs font-body text-slate-900">{locationError}</div>
           </div>
         )}
 
@@ -235,35 +334,52 @@ export const CreateReportView: React.FC<CreateReportViewProps> = ({
             <label className="font-label text-xs text-slate-900 uppercase font-bold tracking-wider" htmlFor="kota">
               KOTA *
             </label>
-            <select
+            <input
               id="kota"
+              type="text"
               required
+              list="kota-datalist"
               value={kota}
               onChange={(e) => setKota(e.target.value)}
-              disabled={!!initialLocation}
-              className="border border-slate-200 rounded-lg p-2.5 focus:border-primary-600 focus:ring-0 transition-all font-body text-sm bg-white shadow-inner outline-none cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-            >
+              placeholder="Ketik atau pilih nama kota/kabupaten"
+              className="border border-slate-200 rounded-lg p-2.5 focus:border-primary-600 focus:ring-0 transition-all font-body text-sm bg-white shadow-inner outline-none"
+            />
+            <datalist id="kota-datalist">
               {CITIES.map((c) => (
-                <option key={c.name} value={c.name}>
-                  {c.name}
-                </option>
+                <option key={c.name} value={c.name} />
               ))}
-            </select>
+            </datalist>
+            <p className="text-[11px] text-slate-500 font-body">
+              Bisa ketik nama kota/kabupaten mana pun di Indonesia — daftar di atas cuma saran.
+            </p>
           </div>
 
           {/* Alamat/Lokasi */}
           <div className="flex flex-col gap-1">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center flex-wrap gap-1">
               <label className="font-label text-xs text-slate-900 uppercase font-bold tracking-wider" htmlFor="lokasi">
                 ALAMAT/LOKASI *
               </label>
-              <button
-                type="button"
-                onClick={onPickOnMap}
-                className="text-[11px] font-label uppercase text-primary-600 font-bold hover:underline cursor-pointer"
-              >
-                Pilih di peta
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleUseMyLocation}
+                  disabled={isDetectingLocation}
+                  className="text-[11px] font-label uppercase text-primary-600 font-bold hover:underline cursor-pointer flex items-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  <span className={`material-symbols-outlined text-[14px] ${isDetectingLocation ? 'animate-spin' : ''}`}>
+                    {isDetectingLocation ? 'progress_activity' : 'my_location'}
+                  </span>
+                  Gunakan Lokasi Saya
+                </button>
+                <button
+                  type="button"
+                  onClick={onPickOnMap}
+                  className="text-[11px] font-label uppercase text-primary-600 font-bold hover:underline cursor-pointer"
+                >
+                  Pilih di peta
+                </button>
+              </div>
             </div>
             <div className="relative">
               <input
