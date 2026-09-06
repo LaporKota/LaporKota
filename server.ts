@@ -531,7 +531,7 @@ async function startServer() {
     await setupDb();
     try {
       const id = 'topic-' + Date.now().toString().slice(-6);
-      const topic = { ...req.body, id, repliesCount: 0, replies: [], upvotes: 0, upvotedBy: [] };
+      const topic = { ...req.body, id, userId: req.user.id, repliesCount: 0, replies: [], upvotes: 0, upvotedBy: [] };
       await db.execute({
         sql: 'INSERT INTO forum_topics (id, data, created_at) VALUES (?, ?, ?)',
         args: [id, JSON.stringify(topic), Date.now()],
@@ -551,6 +551,28 @@ async function startServer() {
   const saveTopic = async (id: string, topic: any) => {
     await db.execute({ sql: 'UPDATE forum_topics SET data = ? WHERE id = ?', args: [JSON.stringify(topic), id] });
   };
+
+  // Hapus topik forum — hanya boleh dilakukan oleh pembuat topik itu sendiri, atau admin/petugas
+  app.delete('/api/forum/topics/:id', requireAuth, async (req: any, res) => {
+    await setupDb();
+    try {
+      const topic = await getTopicById(req.params.id);
+      if (!topic) return res.status(404).json({ error: 'Diskusi tidak ditemukan' });
+
+      const isOwner = topic.userId && topic.userId === req.user.id;
+      const isAdmin = req.user.role === 'admin';
+
+      if (!isOwner && !isAdmin) {
+        return res.status(403).json({ error: 'Anda tidak berhak menghapus diskusi ini' });
+      }
+
+      await db.execute({ sql: 'DELETE FROM forum_topics WHERE id = ?', args: [req.params.id] });
+      res.json({ success: true, id: req.params.id });
+    } catch (error) {
+      console.error('Delete topic error:', error);
+      res.status(500).json({ error: 'Terjadi kesalahan pada server' });
+    }
+  });
 
   app.post('/api/forum/topics/:id/upvote', requireAuth, async (req: any, res) => {
     await setupDb();
