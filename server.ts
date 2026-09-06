@@ -264,7 +264,7 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
-  app.use(express.json());
+  app.use(express.json({ limit: '8mb' }));
 
   // Security headers dasar (setara subset helmet, tanpa nambah dependency baru)
   app.use((req, res, next) => {
