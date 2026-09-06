@@ -431,7 +431,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#f5f0e8]">
+    <div className="min-h-screen flex flex-col bg-white">
       <Header
         currentTab={currentTab}
         setCurrentTab={setCurrentTab}
