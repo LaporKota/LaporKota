@@ -39,8 +39,8 @@ export interface Report {
   city: string;
   lat: number;
   lng: number;
-  mapTopPct: number; // percentage from top on custom map (0-100)
-  mapLeftPct: number; // percentage from left on custom map (0-100)
+  mapTopPct?: number; // legacy: posisi persen di peta ilustrasi lama (sudah tidak dipakai peta baru)
+  mapLeftPct?: number; // legacy: posisi persen di peta ilustrasi lama (sudah tidak dipakai peta baru)
   timeAgo: string;
   timestamp: number;
   status: ReportStatus;
