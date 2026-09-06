@@ -334,6 +334,7 @@ const App: React.FC = () => {
             onNavigateToForum={() => setCurrentTab('forum')}
             onNavigateToPortfolio={() => setCurrentTab('portfolio')}
             onNavigateToImpact={() => setCurrentTab('impact')}
+            user={user}
           />
         );
       case 'reports':
@@ -347,6 +348,7 @@ const App: React.FC = () => {
             onNavigateToEcoPulse={() => setCurrentTab('ecopulse')}
             onNavigateToForum={() => setCurrentTab('forum')}
             onNavigateToPortfolio={() => setCurrentTab('portfolio')}
+            user={user}
           />
         );
       case 'map':
