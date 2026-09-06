@@ -1,11 +1,12 @@
 import React from 'react';
-import { Report, ReportStatus, ReportCategory } from '../types';
+import { Report, ReportStatus, ReportCategory, User } from '../types';
 import { GreenEduSection } from './GreenEduSection';
 import { motion } from 'motion/react';
 import { StaggeredText } from './motion/StaggeredText';
 import { CountUpStat } from './motion/CountUpStat';
 import { customEasing, springConfig } from './motion/PageTransition';
 import { ShieldCheck, Leaf, Megaphone, Zap, Users, Building2, Activity } from 'lucide-react';
+import { isUpvotedByUser } from '../utils/upvote';
 
 interface HomeViewProps {
   reports: Report[];
@@ -19,6 +20,7 @@ interface HomeViewProps {
   onNavigateToForum: () => void;
   onNavigateToPortfolio: () => void;
   onNavigateToImpact: () => void;
+  user?: User | null;
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({
@@ -33,6 +35,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onNavigateToForum,
   onNavigateToPortfolio,
   onNavigateToImpact,
+  user,
 }) => {
   // Top active/featured reports
   const featuredReports = reports.slice(0, 4);
@@ -341,6 +344,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {featuredReports.map((report) => {
             const catBadge = getCategoryBadge(report.category);
+            const userUpvoted = isUpvotedByUser(report, user);
             return (
               <article
                 key={report.id}
@@ -404,7 +408,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                         onClick={(e) => onToggleUpvote(report.id, e)}
                         className="flex items-center gap-1 font-label text-xs font-bold text-slate-900 hover:text-rose-500"
                       >
-                        <span className={`material-symbols-outlined text-[16px] ${report.hasUpvoted ? 'fill text-rose-500' : ''}`}>
+                        <span className={`material-symbols-outlined text-[16px] ${userUpvoted ? 'fill text-rose-500' : ''}`}>
                           thumb_up
                         </span>
                         <span>{report.upvotes}</span>
