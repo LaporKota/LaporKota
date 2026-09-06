@@ -194,6 +194,7 @@ export interface ForumReply {
 
 export interface ForumTopic {
   id: string;
+  userId?: string; // id pembuat topik — dipakai buat cek siapa yang boleh hapus
   title: string;
   category: ForumCategory;
   author: string;
