@@ -1,9 +1,10 @@
 import { motion } from 'motion/react';
 import { customEasing, springConfig } from './motion/PageTransition';
 import React, { useState, useMemo } from 'react';
-import { Report, ReportStatus, ReportCategory } from '../types';
+import { Report, ReportStatus, ReportCategory, User } from '../types';
 import { GreenEduSection } from './GreenEduSection';
 import { Check } from 'lucide-react';
+import { isUpvotedByUser } from '../utils/upvote';
 
 interface ReportsViewProps {
   reports: Report[];
@@ -14,6 +15,7 @@ interface ReportsViewProps {
   onNavigateToEcoPulse?: () => void;
   onNavigateToForum?: () => void;
   onNavigateToPortfolio?: () => void;
+  user?: User | null;
 }
 
 export const ReportsView: React.FC<ReportsViewProps> = ({
@@ -25,6 +27,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   onNavigateToEcoPulse,
   onNavigateToForum,
   onNavigateToPortfolio,
+  user,
 }) => {
   const [statusFilter, setStatusFilter] = useState<'all' | ReportStatus>('all');
   const [categoryFilter, setCategoryFilter] = useState<'all' | ReportCategory>('all');
@@ -267,6 +270,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
         <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {displayedReports.map((report) => {
             const catBadge = getCategoryBadge(report.category, report.categoryLabel);
+            const userUpvoted = isUpvotedByUser(report, user);
             return (
               <article
                 key={report.id}
@@ -349,15 +353,15 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                       <button
                         onClick={(e) => onToggleUpvote(report.id, e)}
                         className={`flex items-center gap-1 text-slate-900 px-2 py-0.5 transition-all active:scale-95 cursor-pointer ${
-                          report.hasUpvoted
+                          userUpvoted
                             ? 'border border-slate-200 rounded-lg bg-rose-50 shadow-sm'
                             : 'hover:text-primary-600 rounded-lg hover:bg-rose-50 hover:shadow-sm'
                         }`}
-                        title={report.hasUpvoted ? 'Batalkan Upvote' : 'Dukung Laporan Ini'}
+                        title={userUpvoted ? 'Batalkan Upvote' : 'Dukung Laporan Ini'}
                       >
                         <span
                           className={`material-symbols-outlined text-[18px] ${
-                            report.hasUpvoted ? 'fill text-rose-500' : ''
+                            userUpvoted ? 'fill text-rose-500' : ''
                           }`}
                         >
                           thumb_up
