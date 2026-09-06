@@ -193,10 +193,7 @@ const signupSchema = z.object({
     .string()
     .trim()
     .toLowerCase()
-    .email('Format email tidak valid')
-    .refine((val) => /^[a-zA-Z0-9._%+-]+@gmail\.com$/.test(val), {
-      message: 'Wajib menggunakan email Gmail (contoh: namakamu@gmail.com)',
-    }),
+    .email('Format email tidak valid'),
   password: z
     .string()
     .min(8, 'Password minimal 8 karakter')
