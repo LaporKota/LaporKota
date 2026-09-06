@@ -13,15 +13,27 @@ interface MapViewProps {
 }
 
 // Style & ikon marker per kategori laporan (dipakai bareng untuk legenda & pin di peta)
+// Warna disamakan urutan & labelnya dengan dropdown "Pilih Kategori" di form Buat Laporan.
 const CATEGORY_STYLE: Record<string, { color: string; icon: string; label: string }> = {
-  kebersihan: { color: '#e11d48', icon: 'delete', label: 'Sampah' },
-  drainase: { color: '#0d9488', icon: 'water_drop', label: 'Drainase' },
-  infrastruktur: { color: '#0d9488', icon: 'construction', label: 'Infrastruktur' },
-  penerangan: { color: '#0d9488', icon: 'lightbulb', label: 'Infrastruktur' },
-  ruang_hijau: { color: '#16a34a', icon: 'park', label: 'Ruang Hijau' },
-  fasilitas: { color: '#0d9488', icon: 'directions_walk', label: 'Fasilitas Umum' },
+  kebersihan: { color: '#e11d48', icon: 'delete', label: 'Sampah & Kebersihan' },
+  ruang_hijau: { color: '#16a34a', icon: 'park', label: 'Ruang Hijau & Taman' },
+  infrastruktur: { color: '#0d9488', icon: 'construction', label: 'Infrastruktur Jalan' },
+  penerangan: { color: '#f59e0b', icon: 'lightbulb', label: 'Penerangan Jalan (PJU)' },
+  drainase: { color: '#0284c7', icon: 'water_drop', label: 'Drainase & Saluran Air' },
+  fasilitas: { color: '#7c3aed', icon: 'directions_walk', label: 'Fasilitas Umum & Trotoar' },
   lainnya: { color: '#64748b', icon: 'info', label: 'Lainnya' },
 };
+
+// Urutan kategori yang dipakai untuk render daftar Legenda di peta
+const LEGEND_ORDER: ReportCategory[] = [
+  'kebersihan',
+  'ruang_hijau',
+  'infrastruktur',
+  'penerangan',
+  'drainase',
+  'fasilitas',
+  'lainnya',
+];
 
 function getCategoryStyle(cat: ReportCategory) {
   return CATEGORY_STYLE[cat] || CATEGORY_STYLE.lainnya;
@@ -89,11 +101,24 @@ const ClickToReport: React.FC<{ onPick: (lat: number, lng: number) => void }> = 
   return null;
 };
 
+// Terbang ke titik lokasi pengguna (dari tombol "Lokasi Saya") setiap kali titiknya berubah
+const FlyToPoint: React.FC<{ point: { lat: number; lng: number } | null }> = ({ point }) => {
+  const map = useMap();
+  useEffect(() => {
+    if (point) {
+      map.flyTo([point.lat, point.lng], 15, { duration: 1 });
+    }
+  }, [point?.lat, point?.lng]);
+  return null;
+};
+
 export const MapView: React.FC<MapViewProps> = ({ reports, onSelectReport, onCreateReportAt }) => {
   const [mapStatusFilter, setMapStatusFilter] = useState<'all' | ReportStatus>('all');
   const [selectedCityName, setSelectedCityName] = useState<string>('all');
   const [tempMarker, setTempMarker] = useState<{ lat: number; lng: number } | null>(null);
   const [isLocating, setIsLocating] = useState(false);
+  const [myLocation, setMyLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [isGettingGeo, setIsGettingGeo] = useState(false);
 
   const selectedCity = CITIES.find((c) => c.name === selectedCityName) || null;
 
@@ -134,6 +159,33 @@ export const MapView: React.FC<MapViewProps> = ({ reports, onSelectReport, onCre
     onCreateReportAt({ lat, lng, city, address });
   };
 
+  // Deteksi lokasi pengguna via GPS/browser lalu langsung siapkan laporan di titik itu
+  const handleLocateMe = () => {
+    if (!('geolocation' in navigator)) {
+      alert('Browser Anda tidak mendukung deteksi lokasi otomatis. Silakan klik langsung di peta.');
+      return;
+    }
+
+    setIsGettingGeo(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setIsGettingGeo(false);
+        setMyLocation({ lat: latitude, lng: longitude });
+        handlePickPoint(latitude, longitude);
+      },
+      (err) => {
+        setIsGettingGeo(false);
+        const message =
+          err.code === err.PERMISSION_DENIED
+            ? 'Akses lokasi ditolak. Aktifkan izin lokasi di browser untuk pakai fitur ini, atau klik langsung di peta.'
+            : 'Gagal mendapatkan lokasi Anda. Coba lagi atau klik langsung di peta.';
+        alert(message);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
+
   const center: [number, number] = selectedCity ? selectedCity.center : overviewCenter;
   const zoom = selectedCity ? selectedCity.zoom : overviewZoom;
 
@@ -165,13 +217,26 @@ export const MapView: React.FC<MapViewProps> = ({ reports, onSelectReport, onCre
             </div>
           </div>
 
-          <button
-            onClick={() => onCreateReportAt(null)}
-            className="px-4 py-2 bg-primary-600 text-white border border-slate-200 rounded-lg font-label text-xs sm:text-sm font-bold uppercase shadow-md hover:bg-primary-700 flex items-center gap-1.5 cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-[18px]">add_location_alt</span>
-            Buat Laporan
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleLocateMe}
+              disabled={isGettingGeo}
+              className="px-4 py-2 bg-white text-primary-700 border border-slate-200 rounded-lg font-label text-xs sm:text-sm font-bold uppercase shadow-md hover:bg-slate-100 flex items-center gap-1.5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <span className={`material-symbols-outlined text-[18px] ${isGettingGeo ? 'animate-spin' : ''}`}>
+                {isGettingGeo ? 'progress_activity' : 'my_location'}
+              </span>
+              {isGettingGeo ? 'Mencari Lokasi...' : 'Lokasi Saya'}
+            </button>
+
+            <button
+              onClick={() => onCreateReportAt(null)}
+              className="px-4 py-2 bg-primary-600 text-white border border-slate-200 rounded-lg font-label text-xs sm:text-sm font-bold uppercase shadow-md hover:bg-primary-700 flex items-center gap-1.5 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[18px]">add_location_alt</span>
+              Buat Laporan
+            </button>
+          </div>
         </div>
 
         {/* City Tabs — 5 kota + tampilan gabungan */}
@@ -221,19 +286,19 @@ export const MapView: React.FC<MapViewProps> = ({ reports, onSelectReport, onCre
         </div>
 
         {/* Legend */}
-        <div className="absolute bottom-3 right-3 z-[1000] bg-slate-50 border border-slate-200 rounded-xl shadow-lg p-3 flex flex-col gap-1.5">
+        <div className="absolute bottom-3 right-3 z-[1000] bg-slate-50 border border-slate-200 rounded-xl shadow-lg p-3 flex flex-col gap-1.5 max-w-[230px]">
           <div className="font-label text-xs font-bold text-slate-900 uppercase tracking-wider border-b-2 border-slate-200 pb-1">
             KATEGORI
           </div>
-          <div className="flex items-center gap-2 font-label text-[11px] text-slate-900 font-bold uppercase">
-            <div className="w-3.5 h-3.5 rounded border-2 border-white shadow" style={{ background: '#e11d48' }}></div> Sampah
-          </div>
-          <div className="flex items-center gap-2 font-label text-[11px] text-slate-900 font-bold uppercase">
-            <div className="w-3.5 h-3.5 rounded border-2 border-white shadow" style={{ background: '#0d9488' }}></div> Drainase / Infrastruktur
-          </div>
-          <div className="flex items-center gap-2 font-label text-[11px] text-slate-900 font-bold uppercase">
-            <div className="w-3.5 h-3.5 rounded border-2 border-white shadow" style={{ background: '#16a34a' }}></div> Ruang Hijau
-          </div>
+          {LEGEND_ORDER.map((cat) => (
+            <div key={cat} className="flex items-center gap-2 font-label text-[11px] text-slate-900 font-bold uppercase">
+              <div
+                className="w-3.5 h-3.5 rounded border-2 border-white shadow shrink-0"
+                style={{ background: CATEGORY_STYLE[cat].color }}
+              ></div>
+              {CATEGORY_STYLE[cat].label}
+            </div>
+          ))}
         </div>
 
         <MapContainer
@@ -259,6 +324,7 @@ export const MapView: React.FC<MapViewProps> = ({ reports, onSelectReport, onCre
             bounds={selectedCityName === 'all' ? INDONESIA_BOUNDS : undefined}
           />
           <ClickToReport onPick={handlePickPoint} />
+          <FlyToPoint point={myLocation} />
 
           {tempMarker && <Marker position={[tempMarker.lat, tempMarker.lng]} icon={tempMarkerIcon} />}
 
