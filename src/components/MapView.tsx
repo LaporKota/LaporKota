@@ -58,12 +58,24 @@ const tempMarkerIcon = L.divIcon({
   iconAnchor: [45, 30],
 });
 
-// Reposisi & zoom ulang peta setiap kali kota yang dipilih berubah
-const FlyToCity: React.FC<{ center: [number, number]; zoom: number }> = ({ center, zoom }) => {
+// Batas wilayah Indonesia — peta tidak akan bisa digeser/di-zoom keluar dari area ini
+const INDONESIA_BOUNDS = L.latLngBounds([-11.5, 94.0], [6.5, 141.5]);
+
+// Reposisi & zoom ulang peta setiap kali kota yang dipilih berubah.
+// Kalau `bounds` diisi (mode "Semua Kota"), peta akan fit ke seluruh wilayah Indonesia.
+const FlyToCity: React.FC<{ center: [number, number]; zoom: number; bounds?: L.LatLngBounds }> = ({
+  center,
+  zoom,
+  bounds,
+}) => {
   const map = useMap();
   useEffect(() => {
-    map.flyTo(center, zoom, { duration: 0.8 });
-  }, [center[0], center[1], zoom]);
+    if (bounds) {
+      map.flyToBounds(bounds, { duration: 0.8 });
+    } else {
+      map.flyTo(center, zoom, { duration: 0.8 });
+    }
+  }, [center[0], center[1], zoom, bounds]);
   return null;
 };
 
@@ -86,7 +98,7 @@ export const MapView: React.FC<MapViewProps> = ({ reports, onSelectReport, onCre
   const selectedCity = CITIES.find((c) => c.name === selectedCityName) || null;
 
   // Titik tengah gabungan Indonesia dipakai saat tab "Semua Kota" aktif
-  const overviewCenter: [number, number] = [-3.5, 112];
+  const overviewCenter: [number, number] = [-2.5, 117.5];
   const overviewZoom = 5;
 
   const visibleReports = useMemo(() => {
@@ -227,6 +239,10 @@ export const MapView: React.FC<MapViewProps> = ({ reports, onSelectReport, onCre
         <MapContainer
           center={center}
           zoom={zoom}
+          minZoom={5}
+          maxBounds={INDONESIA_BOUNDS}
+          maxBoundsViscosity={1.0}
+          worldCopyJump={false}
           scrollWheelZoom
           style={{ width: '100%', height: '100%', minHeight: '640px' }}
           className="cursor-crosshair"
@@ -234,9 +250,14 @@ export const MapView: React.FC<MapViewProps> = ({ reports, onSelectReport, onCre
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            noWrap
           />
 
-          <FlyToCity center={center} zoom={zoom} />
+          <FlyToCity
+            center={center}
+            zoom={zoom}
+            bounds={selectedCityName === 'all' ? INDONESIA_BOUNDS : undefined}
+          />
           <ClickToReport onPick={handlePickPoint} />
 
           {tempMarker && <Marker position={[tempMarker.lat, tempMarker.lng]} icon={tempMarkerIcon} />}
