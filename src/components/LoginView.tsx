@@ -12,7 +12,10 @@ interface LoginViewProps {
 }
 
 const loginSchema = z.object({
-  email: z.string().min(1, 'Email wajib diisi'),
+  email: z
+    .string()
+    .min(1, 'Email wajib diisi')
+    .email('Format email tidak valid'),
   password: z.string().min(1, 'Password wajib diisi'),
 });
 
@@ -50,13 +53,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin, onNavigateToSignu
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
           <div>
             <label className="block font-label text-xs font-medium text-slate-900 mb-1">
-              Email / No. HP
+              Email
             </label>
             <input
               type="text"
               {...register('email')}
               className="w-full border border-slate-200 rounded-lg bg-slate-50 p-3 font-body text-sm text-slate-900 focus:bg-white focus:outline-none shadow-sm"
-              placeholder="Masukkan email atau no. HP"
+              placeholder="Masukkan email"
             />
             {errors.email && <p className="text-rose-500 text-xs font-bold mt-1">{errors.email.message}</p>}
           </div>
