@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Report } from '../types';
+import { Report, User } from '../types';
 import { CITIES } from '../data/cities';
 
 export interface ReportLocationPrefill {
@@ -15,6 +15,7 @@ interface CreateReportViewProps {
   initialLocation: ReportLocationPrefill | null;
   onClearInitialLocation: () => void;
   onPickOnMap: () => void;
+  user?: User | null;
 }
 
 export const CreateReportView: React.FC<CreateReportViewProps> = ({
@@ -23,6 +24,7 @@ export const CreateReportView: React.FC<CreateReportViewProps> = ({
   initialLocation,
   onClearInitialLocation,
   onPickOnMap,
+  user,
 }) => {
   const [judul, setJudul] = useState('');
   const [kategori, setKategori] = useState<string>('');
@@ -111,6 +113,11 @@ export const CreateReportView: React.FC<CreateReportViewProps> = ({
         hasUpvoted: true,
         imageUrl: defaultImg,
         priority: 'Tinggi',
+        reporterName: user?.name || 'Warga',
+        updates: [],
+        comments: [],
+        userJoinedVolunteer: false,
+        volunteerCount: 0,
       });
 
       setIsSubmitting(false);
