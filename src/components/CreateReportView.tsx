@@ -110,7 +110,7 @@ export const CreateReportView: React.FC<CreateReportViewProps> = ({
         timestamp: Date.now(),
         status: 'baru',
         upvotes: 1,
-        hasUpvoted: true,
+        upvotedBy: user ? [user.id] : [],
         imageUrl: defaultImg,
         priority: 'Tinggi',
         reporterName: user?.name || 'Warga',
