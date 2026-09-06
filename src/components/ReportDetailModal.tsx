@@ -29,6 +29,12 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
 
   if (!report) return null;
 
+  // Fallback aman kalau ada laporan lama di database yang belum punya field ini
+  // (mencegah halaman blank total kalau salah satu field tidak ada)
+  const safeUpdates = report.updates || [];
+  const safeComments = report.comments || [];
+  const safeReporterName = report.reporterName || 'Warga';
+
   const handleCommentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!commentInput.trim()) return;
@@ -130,7 +136,7 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
               </span>
               <span className="flex items-center gap-1">
                 <span className="material-symbols-outlined text-[18px]">person</span>
-                Pelapor: {report.reporterName}
+                Pelapor: {safeReporterName}
               </span>
               {report.departmentAssigned && (
                 <span className="flex items-center gap-1 text-primary-600 font-bold">
@@ -247,7 +253,7 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
             </h4>
 
             <div className="flex flex-col gap-3 pl-2">
-              {report.updates.map((upd, idx) => (
+              {safeUpdates.map((upd, idx) => (
                 <div key={upd.id || idx} className="relative pl-6 pb-2 border-l-3 border-slate-200">
                   <div className="absolute -left-[9px] top-0 w-4 h-4 bg-primary-600 border border-slate-200 rounded-lg"></div>
                   <div className="flex flex-wrap items-center justify-between gap-1 text-xs font-label">
@@ -266,15 +272,15 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
           <div className="flex flex-col gap-3 border-t-2 border-slate-200 pt-4">
             <h4 className="font-headline text-lg font-semibold tracking-tight flex items-center gap-1.5">
               <span className="material-symbols-outlined text-[20px]">forum</span>
-              KOMENTAR &amp; TANGGAPAN WARGA ({report.comments.length})
+              KOMENTAR &amp; TANGGAPAN WARGA ({safeComments.length})
             </h4>
 
             {/* Comment List */}
             <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-1">
-              {report.comments.length === 0 ? (
+              {safeComments.length === 0 ? (
                 <p className="font-body text-xs text-slate-500 italic">Belum ada tanggapan. Jadilah warga pertama yang berkomentar!</p>
               ) : (
-                report.comments.map((c) => (
+                safeComments.map((c) => (
                   <div
                     key={c.id}
                     className={`p-3 border border-slate-200 rounded-lg text-xs ${
