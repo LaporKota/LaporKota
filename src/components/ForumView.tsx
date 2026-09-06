@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { ForumTopic, ForumCategory, ForumReply, User } from '../types';
+import { isItemUpvotedByUser } from '../utils/upvote';
 
 interface ForumViewProps {
   onOpenReportModal?: () => void;
@@ -326,7 +327,7 @@ export const ForumView: React.FC<ForumViewProps> = ({ onOpenReportModal, user })
                   <button
                     onClick={(e) => handleToggleTopicUpvote(topic.id, e)}
                     className={`px-3 py-1 border border-slate-200 rounded-lg font-label text-xs font-medium flex items-center gap-1.5 transition-all ${
-                      topic.hasUpvoted
+                      isItemUpvotedByUser(topic, user)
                         ? 'bg-primary-600 shadow-sm'
                         : 'bg-white hover:bg-white'
                     }`}
@@ -414,7 +415,7 @@ export const ForumView: React.FC<ForumViewProps> = ({ onOpenReportModal, user })
                   <button
                     onClick={(e) => handleToggleTopicUpvote(activeTopicForModal.id, e)}
                     className={`px-3 py-1.5 border border-slate-200 rounded-lg font-label text-xs font-medium flex items-center gap-1.5 cursor-pointer ${
-                      activeTopicForModal.hasUpvoted
+                      isItemUpvotedByUser(activeTopicForModal, user)
                         ? 'bg-primary-600 shadow-sm'
                         : 'bg-white'
                     }`}
@@ -466,7 +467,7 @@ export const ForumView: React.FC<ForumViewProps> = ({ onOpenReportModal, user })
                               handleToggleReplyUpvote(activeTopicForModal.id, reply.id)
                             }
                             className={`px-2 py-0.5 border border-slate-200 text-[10px] font-label font-bold uppercase flex items-center gap-1 cursor-pointer ${
-                              reply.hasUpvoted ? 'bg-primary-600' : 'bg-white hover:bg-rose-50'
+                              isItemUpvotedByUser(reply, user) ? 'bg-primary-600' : 'bg-white hover:bg-rose-50'
                             }`}
                           >
                             <span className="material-symbols-outlined text-[12px]">thumb_up</span>
