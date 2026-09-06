@@ -1,0 +1,83 @@
+import L from 'leaflet';
+
+// Kotak pembatas kasar wilayah Indonesia (dipakai untuk membatasi peta —
+// bukan bentuk negara yang presisi, makanya negara tetangga seperti Malaysia/
+// Singapura/Timor-Leste/PNG masih ikut "kepotong" di dalam kotak ini).
+export const INDONESIA_BOUNDS = L.latLngBounds([-11.5, 94.0], [6.5, 141.5]);
+
+export interface GeocodeResult {
+  address: string;
+  countryCode: string | null;
+  isIndonesia: boolean;
+  // Nama kota/kabupaten asli hasil reverse-geocode (kalau OSM punya datanya) — dipakai
+  // supaya field "Kota" tidak dipaksa jadi salah satu dari daftar kota kita, dan tetap
+  // benar untuk kota/kabupaten mana pun di Indonesia.
+  cityGuess: string | null;
+}
+
+// Reverse geocoding gratis via Nominatim (OpenStreetMap) — berjalan langsung
+// di browser pengguna, tidak butuh API key. Mengembalikan alamat lengkap
+// (jalan/kelurahan/kecamatan/kota — sesuai detail yang tersedia di data OSM
+// untuk titik tsb) sekaligus kode negaranya, supaya kita bisa validasi titik
+// itu benar-benar di Indonesia atau bukan.
+export async function reverseGeocode(lat: number, lng: number): Promise<GeocodeResult> {
+  const fallback: GeocodeResult = {
+    address: `Titik terpilih (${lat.toFixed(4)}, ${lng.toFixed(4)})`,
+    countryCode: null,
+    isIndonesia: true, // gagal geocoding jangan langsung diblokir — anggap valid, biar user tetap bisa lanjut
+    cityGuess: null,
+  };
+
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+      { headers: { Accept: 'application/json' } }
+    );
+    if (!res.ok) return fallback;
+
+    const data = await res.json();
+    const countryCode: string | null = data?.address?.country_code || null;
+    const addr = data?.address || {};
+    // Urutan prioritas field kota/kabupaten dari Nominatim (beda daerah, beda field yang keisi)
+    const cityGuess: string | null =
+      addr.city || addr.town || addr.municipality || addr.regency || addr.county || addr.city_district || null;
+
+    return {
+      address: data?.display_name || fallback.address,
+      countryCode,
+      isIndonesia: countryCode ? countryCode.toLowerCase() === 'id' : true,
+      cityGuess,
+    };
+  } catch {
+    // Diamkan saja kalau reverse geocoding gagal (misal offline) — fallback ke koordinat sudah cukup
+    return fallback;
+  }
+}
+
+export interface GeoPosition {
+  lat: number;
+  lng: number;
+}
+
+// Bungkus Geolocation API browser (callback-based) jadi Promise supaya gampang dipakai dengan async/await,
+// plus pesan error dalam Bahasa Indonesia yang jelas untuk tiap kasus gagal.
+export function getCurrentPosition(): Promise<GeoPosition> {
+  return new Promise((resolve, reject) => {
+    if (!('geolocation' in navigator)) {
+      reject(new Error('Browser Anda tidak mendukung deteksi lokasi otomatis. Silakan pilih lokasi lewat peta atau isi manual.'));
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      (err) => {
+        const message =
+          err.code === err.PERMISSION_DENIED
+            ? 'Akses lokasi ditolak. Aktifkan izin lokasi di browser untuk memakai fitur ini, atau pilih lokasi lewat peta.'
+            : 'Gagal mendapatkan lokasi Anda. Coba lagi, atau pilih lokasi lewat peta / isi manual.';
+        reject(new Error(message));
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  });
+}
