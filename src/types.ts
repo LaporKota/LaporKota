@@ -188,6 +188,8 @@ export interface ForumReply {
   content: string;
   upvotes: number;
   hasUpvoted?: boolean;
+  upvotedBy?: string[];
+  baseUpvotes?: number;
 }
 
 export interface ForumTopic {
@@ -203,6 +205,8 @@ export interface ForumTopic {
   createdAt: string;
   upvotes: number;
   hasUpvoted?: boolean;
+  upvotedBy?: string[];
+  baseUpvotes?: number;
   repliesCount: number;
   replies: ForumReply[];
   isPinned?: boolean;
