@@ -361,6 +361,7 @@ const App: React.FC = () => {
             initialLocation={createReportPrefill}
             onClearInitialLocation={() => setCreateReportPrefill(null)}
             onPickOnMap={() => setCurrentTab('map')}
+            user={user}
           />
         );
       case 'forum':
