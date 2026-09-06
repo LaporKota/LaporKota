@@ -110,6 +110,8 @@ export interface User {
   role: 'admin' | 'user';
   password?: string;
   domicile?: string;
+  bio?: string;
+  avatarUrl?: string;
 }
 
 // =======================
