@@ -191,11 +191,13 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             className="border border-slate-200 rounded-lg bg-slate-50 py-2 pl-3 pr-8 font-label text-sm font-bold text-slate-900 focus:ring-0 focus:outline-none focus:bg-primary-600 transition-colors shadow-sm cursor-pointer"
           >
             <option value="all">Kategori (Semua)</option>
-            <option value="infrastruktur">Infrastruktur</option>
-            <option value="kebersihan">Kebersihan Lingkungan</option>
-            <option value="fasilitas">Fasilitas Umum</option>
-            <option value="drainase">Drainase</option>
-            <option value="ruang_hijau">Ruang Hijau</option>
+            <option value="kebersihan">Sampah & Kebersihan</option>
+            <option value="ruang_hijau">Ruang Hijau & Taman</option>
+            <option value="infrastruktur">Infrastruktur Jalan</option>
+            <option value="penerangan">Penerangan Jalan (PJU)</option>
+            <option value="drainase">Drainase & Saluran Air</option>
+            <option value="fasilitas">Fasilitas Umum & Trotoar</option>
+            <option value="lainnya">Lainnya</option>
           </select>
 
           {/* Search box */}
