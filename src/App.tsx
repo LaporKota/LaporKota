@@ -496,6 +496,7 @@ export default function App() {
             user={currentUser} 
             reports={reports} 
             onNavigateToReports={() => setCurrentTab('reports')} 
+            onOpenReport={(report) => setSelectedReport(report)}
           />
         )}
 
