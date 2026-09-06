@@ -64,7 +64,7 @@ export const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
+    <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
       <div className="bg-white border border-slate-200 rounded-xl shadow-xl w-full max-w-3xl my-8 overflow-hidden max-h-[90vh] flex flex-col">
         {/* Modal Topbar */}
         <div className="bg-slate-50 border-b border-slate-200 px-5 py-3 flex justify-between items-center shrink-0">
