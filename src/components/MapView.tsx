@@ -203,7 +203,7 @@ export const MapView: React.FC<MapViewProps> = ({ reports, onSelectReport, onCre
       </div>
 
       {/* Full Map */}
-      <div className="w-full flex-grow relative" style={{ minHeight: '640px' }}>
+      <div className="w-full flex-grow relative isolate" style={{ minHeight: '640px' }}>
         <div className="absolute top-3 left-3 z-[1000] bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 shadow-md flex items-center gap-2">
           <span className="w-2.5 h-2.5 bg-rose-500 rounded-full animate-pulse"></span>
           <span className="font-label text-xs font-medium text-slate-900">
