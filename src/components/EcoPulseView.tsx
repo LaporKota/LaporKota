@@ -199,7 +199,7 @@ export const EcoPulseView: React.FC<EcoPulseViewProps> = ({
           </div>
 
           {/* Energy Distribution & Solar Interactive Calculator */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
             {/* Generation Hourly Bars */}
             <div className="lg:col-span-2 bg-white border border-slate-200 rounded-xl p-6 shadow-lg flex flex-col justify-between">
               <div>
