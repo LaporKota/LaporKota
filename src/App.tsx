@@ -489,7 +489,10 @@ const App: React.FC = () => {
           setSelectedReport(report);
         }}
         user={user}
-        onUpdateUser={(updatedUser) => setUser(updatedUser)}
+        onUpdateUser={(updatedUser) => {
+           setUser(updatedUser);
+           localStorage.setItem('user', JSON.stringify(updatedUser));
+        }}
       />
 
       <VolunteerModal
