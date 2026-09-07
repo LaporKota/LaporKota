@@ -91,7 +91,7 @@ Tantangan utama energi surya adalah intermitensi (fluktuasi intensitas matahari 
     author: 'Gugus Tugas Resiliensi Perkotaan & Geospasial',
     readTime: '4 Menit Baca',
     publishedDate: '22 Agustus 2026',
-    imageUrl: 'https://images.unsplash.com/photo-1583307849646-608bdfbfa220?auto=format&fit=crop&w=900&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1585793451936-e321aa5efb24?auto=format&fit=crop&w=900&q=80',
     summary: 'Jaringan pemantau debit air gorong-gorong dan sedimentasi lumpur bawah tanah yang memberikan peringatan dini banjir 45 menit sebelum air meluap ke pemukiman padat.',
     keyPillars: [
       'Sensor Tekanan Hidrostatis Submersible & Pelampung Magnetik',
