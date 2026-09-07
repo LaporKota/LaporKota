@@ -6,9 +6,12 @@ import { isItemUpvotedByUser } from '../utils/upvote';
 interface ForumViewProps {
   onOpenReportModal?: () => void;
   user: User | null;
+  // Dipanggil sebelum aksi yang butuh login (misal: mulai diskusi baru). Kalau belum login,
+  // ini akan menampilkan peringatan & mengarahkan ke halaman masuk, lalu mengembalikan false.
+  onRequireLogin?: () => boolean;
 }
 
-export const ForumView: React.FC<ForumViewProps> = ({ onOpenReportModal, user }) => {
+export const ForumView: React.FC<ForumViewProps> = ({ onOpenReportModal, user, onRequireLogin }) => {
   const [topics, setTopics] = useState<ForumTopic[]>([]);
 
   useEffect(() => {
@@ -231,7 +234,10 @@ export const ForumView: React.FC<ForumViewProps> = ({ onOpenReportModal, user })
           </div>
 
           <button
-            onClick={() => setIsNewTopicModalOpen(true)}
+            onClick={() => {
+              if (onRequireLogin && !onRequireLogin()) return;
+              setIsNewTopicModalOpen(true);
+            }}
             className="bg-primary-600 text-white border border-slate-200 rounded-xl px-5 py-2.5 font-label text-sm font-medium shadow-md hover:bg-primary-700 active:scale-95 transition-all flex items-center gap-2 cursor-pointer shrink-0"
           >
             <span className="material-symbols-outlined text-[20px]">add_circle</span>
