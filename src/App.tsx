@@ -367,7 +367,13 @@ const App: React.FC = () => {
           />
         );
       case 'forum':
-        return <ForumView onOpenReportModal={handleOpenReportModal} user={user} />;
+        return (
+          <ForumView
+            onOpenReportModal={handleOpenReportModal}
+            user={user}
+            onRequireLogin={() => requireLogin('Silakan masuk atau daftar untuk memulai diskusi baru.')}
+          />
+        );
       case 'ecopulse':
         return (
           <EcoPulseView
