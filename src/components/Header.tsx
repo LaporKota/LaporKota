@@ -9,6 +9,7 @@ interface HeaderProps {
   onOpenProfile: () => void;
   unreadCount: number;
   user: User | null;
+  isVolunteer: boolean;
   onLogout: () => void;
 }
 
@@ -20,6 +21,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenProfile,
   unreadCount,
   user,
+  isVolunteer,
   onLogout,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -32,6 +34,7 @@ export const Header: React.FC<HeaderProps> = ({
     { id: 'forum', label: 'Forum', icon: 'forum' },
     { id: 'portfolio', label: 'Portofolio', icon: 'folder_open' },
     { id: 'impact', label: 'Impact', icon: 'public' },
+    ...(isVolunteer ? [{ id: 'volunteerDashboard', label: 'Relawan', icon: 'volunteer_activism' }] : []),
     ...(user?.role === 'admin' ? [{ id: 'adminDashboard', label: 'Admin', icon: 'dashboard' }] : []),
   ];
 
