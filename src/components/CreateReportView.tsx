@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Report, User } from '../types';
 import { CITIES, findNearestCity } from '../data/cities';
 import { reverseGeocode, getCurrentPosition } from '../utils/geo';
+import { CivicBadge, getRandomCelebrationBadge } from '../utils/civicBadges';
 
 export interface ReportLocationPrefill {
   lat: number;
@@ -35,6 +36,16 @@ export const CreateReportView: React.FC<CreateReportViewProps> = ({
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formSuccess, setFormSuccess] = useState(false);
+
+  // Ringkasan laporan yang baru saja dikirim + sticker perayaan random, ditampilkan di layar sukses
+  const [submittedSummary, setSubmittedSummary] = useState<{
+    title: string;
+    categoryLabel: string;
+    location: string;
+    city: string;
+    imageUrl: string;
+  } | null>(null);
+  const [celebrationBadge, setCelebrationBadge] = useState<CivicBadge | null>(null);
 
   // Koordinat GPS asli (dari peta ATAU dari deteksi lokasi otomatis) — dipakai saat kirim laporan.
   // Kalau kosong (user isi kota/alamat manual tanpa pilih di peta/GPS), koordinat acak sekitar
@@ -194,6 +205,14 @@ export const CreateReportView: React.FC<CreateReportViewProps> = ({
       });
 
       setIsSubmitting(false);
+      setSubmittedSummary({
+        title: judul,
+        categoryLabel: catInfo.label,
+        location: lokasi,
+        city: kota,
+        imageUrl: defaultImg,
+      });
+      setCelebrationBadge(getRandomCelebrationBadge());
       setFormSuccess(true);
       setJudul('');
       setKategori('');
@@ -203,10 +222,89 @@ export const CreateReportView: React.FC<CreateReportViewProps> = ({
       setCoords(null);
       setLocationSource(null);
       onClearInitialLocation();
-
-      setTimeout(() => setFormSuccess(false), 4000);
     }, 500);
   };
+
+  // Reset layar sukses dan balik ke form kosong untuk lapor lagi
+  const handleReportAnother = () => {
+    setFormSuccess(false);
+    setSubmittedSummary(null);
+    setCelebrationBadge(null);
+  };
+
+  if (formSuccess && submittedSummary && celebrationBadge) {
+    return (
+      <div className="flex-grow w-full max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
+        <section
+          className="bg-white border border-slate-200 rounded-xl p-6 sm:p-10 flex flex-col items-center text-center gap-4 shadow-lg"
+          data-aos="fade-up"
+        >
+          {/* Ikon centang besar dengan efek pulse */}
+          <div className="relative flex items-center justify-center mb-1">
+            <div className="absolute w-24 h-24 bg-green-100 rounded-full animate-ping opacity-75" />
+            <div className="relative w-24 h-24 bg-green-600 rounded-full flex items-center justify-center shadow-md">
+              <span className="material-symbols-outlined text-white text-[52px]">check</span>
+            </div>
+          </div>
+
+          <div className="text-4xl">🎉</div>
+
+          <h1 className="font-headline text-2xl sm:text-3xl text-slate-900 uppercase font-bold tracking-tight">
+            Laporan Berhasil Dikirim!
+          </h1>
+          <p className="font-body text-sm text-slate-500 max-w-md">
+            Terima kasih sudah meluangkan waktu melapor. Laporanmu sudah tayang di peta dan bisa dipantau
+            perkembangannya oleh warga lain & petugas.
+          </p>
+
+          {/* Sticker perayaan random */}
+          <span
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border border-slate-200 font-label text-sm font-bold shadow-md ${celebrationBadge.colorClass}`}
+          >
+            <span className="text-xl leading-none">{celebrationBadge.emoji}</span>
+            {celebrationBadge.label}
+          </span>
+
+          {/* Ringkasan laporan yang baru dikirim */}
+          <div className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 flex gap-3 items-center text-left mt-2">
+            <img
+              src={submittedSummary.imageUrl}
+              alt={submittedSummary.title}
+              className="w-16 h-16 object-cover rounded-lg border border-slate-200 shrink-0"
+            />
+            <div className="overflow-hidden">
+              <p className="font-label text-[10px] font-bold uppercase text-primary-600 mb-0.5">
+                {submittedSummary.categoryLabel}
+              </p>
+              <h3 className="font-headline text-sm font-bold text-slate-900 truncate">{submittedSummary.title}</h3>
+              <p className="font-body text-xs text-slate-500 truncate">
+                <span className="material-symbols-outlined text-[13px] align-middle mr-0.5">location_on</span>
+                {submittedSummary.location}, {submittedSummary.city}
+              </p>
+            </div>
+          </div>
+
+          {/* Tombol aksi */}
+          <div className="flex flex-col sm:flex-row gap-2 w-full mt-2">
+            <button
+              onClick={onCancel}
+              className="flex-1 py-3 bg-primary-600 text-white rounded-lg font-label text-sm font-bold uppercase shadow-md hover:bg-primary-700 flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[18px]">map</span>
+              Lihat di Peta
+            </button>
+            <button
+              onClick={handleReportAnother}
+              className="flex-1 py-3 bg-white border border-slate-200 text-slate-900 rounded-lg font-label text-sm font-bold uppercase shadow-sm hover:bg-slate-100 flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[18px]">add_circle</span>
+              Buat Laporan Lagi
+            </button>
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-grow w-full max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
@@ -225,13 +323,6 @@ export const CreateReportView: React.FC<CreateReportViewProps> = ({
         <p className="font-body text-sm text-slate-500 mb-2 font-medium">
           Sampaikan keluhan Anda untuk kota yang lebih baik. Transparansi dan aksi nyata untuk lingkungan kita.
         </p>
-
-        {formSuccess && (
-          <div className="bg-green-600 text-white border border-slate-200 rounded-xl p-3 shadow-md font-label text-sm font-medium flex items-center gap-2">
-            <span className="material-symbols-outlined text-[20px]">check_circle</span>
-            Laporan berhasil dikirim & dipublikasikan di peta!
-          </div>
-        )}
 
         {initialLocation && (
           <div className="bg-primary-50 border border-primary-600 rounded-lg p-3 flex items-start gap-2">
