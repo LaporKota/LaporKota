@@ -49,6 +49,17 @@ const setupDb = async () => {
   await ensureColumn('domicile TEXT');
   await ensureColumn('bio TEXT');
   await ensureColumn('avatar_url TEXT');
+  await ensureColumn('created_at INTEGER');
+
+  // Backfill created_at untuk user lama (dari deploy sebelum kolom ini ada)
+  // biar tidak NULL — dianggap "sudah lama terdaftar".
+  try {
+    await db.execute(
+      "UPDATE users SET created_at = 0 WHERE created_at IS NULL"
+    );
+  } catch (e: any) {
+    console.error('Backfill created_at warning:', e.message);
+  }
 
   // Tabel untuk laporan warga (Report) — disimpan sebagai JSON blob
   // biar gampang reuse struktur data yang sama persis kayak di frontend
@@ -285,8 +296,8 @@ async function startServer() {
       const userId = 'usr-' + Date.now().toString();
 
       await db.execute({
-        sql: 'INSERT INTO users (id, name, email, password, phone, domicile, role) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        args: [userId, name, email, hashedPassword, phone ?? null, domicile ?? null, 'user'],
+        sql: 'INSERT INTO users (id, name, email, password, phone, domicile, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        args: [userId, name, email, hashedPassword, phone ?? null, domicile ?? null, 'user', Date.now()],
       });
 
       const token = jwt.sign({ id: userId, email, role: 'user' }, JWT_SECRET, { expiresIn: '7d' });
@@ -387,6 +398,30 @@ async function startServer() {
       res.json({ totalUsers });
     } catch (error) {
       console.error('Get admin stats error:', error);
+      res.status(500).json({ error: 'Terjadi kesalahan pada server' });
+    }
+  });
+
+  // Daftar anggota (warga) untuk panel admin — dipisah baru daftar vs sudah lama,
+  // ditentukan dari created_at (7 hari terakhir dianggap "baru").
+  app.get('/api/admin/users', requireAdmin, async (req: any, res) => {
+    await setupDb();
+    try {
+      const result = await db.execute(
+        "SELECT id, name, email, phone, domicile, role, created_at FROM users WHERE role = 'user' ORDER BY created_at DESC"
+      );
+      const users = result.rows.map((u: any) => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        phone: u.phone,
+        domicile: u.domicile,
+        role: u.role,
+        createdAt: Number(u.created_at || 0),
+      }));
+      res.json({ users });
+    } catch (error) {
+      console.error('Get admin users error:', error);
       res.status(500).json({ error: 'Terjadi kesalahan pada server' });
     }
   });
