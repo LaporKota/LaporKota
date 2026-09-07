@@ -222,7 +222,7 @@ export const INITIAL_REPORTS: Report[] = [
     status: 'selesai',
     upvotes: 210,
     hasUpvoted: true,
-    imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuC2gQqFQHEQO9HX3UCRwGaSP7MU4VgOee0yugmDuuAr14tRs3qRb88LovdflUICNqxBg3T9FPySoebOY6o9ik9eDZwP2xVQKoC90lUX-If4yFZ7NKelIjbA6RavMDooLQ3qrcc15jlRMhnsrE9OziQbGvGDmh0F-bqatoH4xJ1rOhVqflw9sNYjNxtbEw_5ugcIaxXPqgiLNybssn1eRuF_ET_JP6pzFcXyKbCdWKvjoV6arXypXvTwHw',
+    imageUrl: 'https://images.unsplash.com/photo-1742036953114-86479b041e81?auto=format&fit=crop&w=900&q=80',
     imageAlt: 'Trotoar paving rusak di Merdeka Walk',
     reporterName: 'Willy Simanjuntak',
     departmentAssigned: 'Dinas SDABMBK Kota Medan',
