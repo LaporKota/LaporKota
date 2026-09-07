@@ -24,6 +24,7 @@ import { ReportDetailModal } from './components/ReportDetailModal';
 import { NotificationsModal } from './components/NotificationsModal';
 import { ProfileModal } from './components/ProfileModal';
 import { VolunteerModal } from './components/VolunteerModal';
+import { VolunteerDashboardView } from './components/VolunteerDashboardView';
 import { AboutSDGModal, GeneralInfoModal } from './components/AboutSDGModal';
 import { PageTransition } from './components/motion/PageTransition';
 
@@ -61,6 +62,9 @@ const App: React.FC = () => {
   const [generalInfoType, setGeneralInfoType] = useState<GeneralInfoType>(null);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
+  const isVolunteer = !!user && reports.some((r) => (r.volunteeredBy || []).includes(user.id));
+  // Dashboard Relawan boleh dilihat oleh relawan terdaftar ATAU admin (admin perlu pantau semua relawan).
+  const canViewVolunteerDashboard = isVolunteer || user?.role === 'admin';
 
   // ===================== INIT: AOS & LOAD REPORTS =====================
   useEffect(() => {
@@ -404,6 +408,16 @@ const App: React.FC = () => {
             onOpenReport={setSelectedReport}
           />
         );
+      case 'volunteerDashboard':
+        if (!user || !canViewVolunteerDashboard) return null;
+        return (
+          <VolunteerDashboardView
+            user={user}
+            reports={reports}
+            onSelectReport={setSelectedReport}
+            onNavigateToReports={() => setCurrentTab('reports')}
+          />
+        );
       case 'login':
         return (
           <LoginView
@@ -455,6 +469,7 @@ const App: React.FC = () => {
         onOpenProfile={handleOpenProfile}
         unreadCount={unreadCount}
         user={user}
+        isVolunteer={canViewVolunteerDashboard}
         onLogout={handleLogout}
       />
 
@@ -513,6 +528,7 @@ const App: React.FC = () => {
         onConfirmVolunteer={(reportId, data) => {
           handleConfirmVolunteer(reportId, data);
         }}
+        onNavigateToVolunteerDashboard={() => setCurrentTab('volunteerDashboard')}
       />
 
       <AboutSDGModal isOpen={isAboutSDGOpen} onClose={() => setIsAboutSDGOpen(false)} />
