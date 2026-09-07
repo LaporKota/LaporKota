@@ -535,19 +535,31 @@ async function startServer() {
       const report = await getReportById(req.params.id);
       if (!report) return res.status(404).json({ error: 'Laporan tidak ditemukan' });
 
-      report.volunteerCount = (report.volunteerCount || 0) + 1;
-      report.userJoinedVolunteer = true;
-      if (name && role) {
-        report.comments = [
-          ...(report.comments || []),
-          {
-            id: 'c-' + Date.now(),
-            userName: `${name} (Relawan Terdaftar)`,
-            timestamp: 'Baru saja',
-            content: `Saya siap bergabung dalam aksi relawan sebagai ${role}! Mari gotong royong bersihkan area ini.`,
-          },
-        ];
+      const volunteeredBy: string[] = report.volunteeredBy || [];
+      const alreadyJoined = volunteeredBy.includes(req.user.id);
+
+      if (!alreadyJoined) {
+        // baseVolunteerCount = angka "historis" dari seed data (kalau belum ada, anggap 0)
+        if (report.baseVolunteerCount === undefined) {
+          report.baseVolunteerCount = Math.max(0, (report.volunteerCount || 0) - volunteeredBy.length);
+        }
+        volunteeredBy.push(req.user.id);
+        report.volunteeredBy = volunteeredBy;
+        report.volunteerCount = report.baseVolunteerCount + volunteeredBy.length;
+
+        if (name && role) {
+          report.comments = [
+            ...(report.comments || []),
+            {
+              id: 'c-' + Date.now(),
+              userName: `${name} (Relawan Terdaftar)`,
+              timestamp: 'Baru saja',
+              content: `Saya siap bergabung dalam aksi relawan sebagai ${role}! Mari gotong royong bersihkan area ini.`,
+            },
+          ];
+        }
       }
+
       await saveReport(req.params.id, report);
       res.json({ report });
     } catch (error) {
