@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 're
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Report, ReportCategory, ReportStatus } from '../types';
-import { CITIES, findNearestCity } from '../data/cities';
+import { CITIES, PROVINCE_ORDER, getCitiesByProvince, findNearestCity } from '../data/cities';
 import { ReportLocationPrefill } from './CreateReportView';
 import { INDONESIA_BOUNDS, reverseGeocode, getCurrentPosition } from '../utils/geo';
 
@@ -135,6 +135,7 @@ const FlyToPoint: React.FC<{ point: { lat: number; lng: number } | null }> = ({ 
 export const MapView: React.FC<MapViewProps> = ({ reports, onSelectReport, onCreateReportAt }) => {
   const [mapStatusFilter, setMapStatusFilter] = useState<'all' | ReportStatus>('all');
   const [selectedCityName, setSelectedCityName] = useState<string>('all');
+  const [selectedProvince, setSelectedProvince] = useState<string | null>(null);
   const [tempMarker, setTempMarker] = useState<{ lat: number; lng: number } | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const [myLocation, setMyLocation] = useState<{ lat: number; lng: number; address: string; city: string } | null>(
@@ -143,19 +144,44 @@ export const MapView: React.FC<MapViewProps> = ({ reports, onSelectReport, onCre
   const [isGettingGeo, setIsGettingGeo] = useState(false);
 
   const selectedCity = CITIES.find((c) => c.name === selectedCityName) || null;
+  const provinceCities = useMemo(
+    () => (selectedProvince ? getCitiesByProvince(selectedProvince) : []),
+    [selectedProvince]
+  );
+
+  // Kalau provinsi yang dipilih cuma punya 1 kota di daftar kita, langsung pakai titik kota itu.
+  // Kalau lebih dari 1, peta akan di-fit ke gabungan semua kota di provinsi tsb (lihat provinceBounds).
+  const singleProvinceCity = selectedProvince && provinceCities.length === 1 ? provinceCities[0] : null;
+
+  const provinceBounds = useMemo(() => {
+    if (!selectedProvince || provinceCities.length < 2) return null;
+    const lats = provinceCities.map((c) => c.center[0]);
+    const lngs = provinceCities.map((c) => c.center[1]);
+    return L.latLngBounds([Math.min(...lats), Math.min(...lngs)], [Math.max(...lats), Math.max(...lngs)]);
+  }, [selectedProvince, provinceCities]);
+
+  const handleProvinceChange = (value: string) => {
+    setSelectedProvince(value === 'all' ? null : value);
+    setSelectedCityName('all');
+  };
 
   // Titik tengah gabungan Indonesia dipakai saat tab "Semua Kota" aktif
   const overviewCenter: [number, number] = [-2.5, 117.5];
   const overviewZoom = 5;
 
   const visibleReports = useMemo(() => {
+    const provinceCityNames = selectedProvince ? new Set(provinceCities.map((c) => c.name)) : null;
     return reports.filter((r) => {
       if (mapStatusFilter !== 'all' && r.status !== mapStatusFilter) return false;
-      if (selectedCityName !== 'all' && r.city !== selectedCityName) return false;
+      if (selectedCityName !== 'all') {
+        if (r.city !== selectedCityName) return false;
+      } else if (provinceCityNames) {
+        if (!provinceCityNames.has(r.city)) return false;
+      }
       if (typeof r.lat !== 'number' || typeof r.lng !== 'number') return false;
       return true;
     });
-  }, [reports, mapStatusFilter, selectedCityName]);
+  }, [reports, mapStatusFilter, selectedCityName, selectedProvince, provinceCities]);
 
   const handlePickPoint = async (lat: number, lng: number) => {
     setIsLocating(true);
@@ -197,8 +223,19 @@ export const MapView: React.FC<MapViewProps> = ({ reports, onSelectReport, onCre
     }
   };
 
-  const center: [number, number] = selectedCity ? selectedCity.center : overviewCenter;
-  const zoom = selectedCity ? selectedCity.zoom : overviewZoom;
+  const center: [number, number] = selectedCity
+    ? selectedCity.center
+    : singleProvinceCity
+    ? singleProvinceCity.center
+    : overviewCenter;
+  const zoom = selectedCity ? selectedCity.zoom : singleProvinceCity ? singleProvinceCity.zoom : overviewZoom;
+  const mapBounds = selectedCity
+    ? undefined
+    : provinceBounds
+    ? provinceBounds
+    : !selectedProvince && selectedCityName === 'all'
+    ? INDONESIA_BOUNDS
+    : undefined;
 
   return (
     <div className="flex-grow w-full flex flex-col">
@@ -232,49 +269,66 @@ export const MapView: React.FC<MapViewProps> = ({ reports, onSelectReport, onCre
             <button
               onClick={handleLocateMe}
               disabled={isGettingGeo}
-              className="px-4 py-2 bg-white text-primary-700 border border-slate-200 rounded-lg font-label text-xs sm:text-sm font-bold uppercase shadow-md hover:bg-slate-100 flex items-center gap-1.5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              className="px-3 py-1.5 bg-white text-primary-700 border border-slate-200 rounded-lg font-label text-xs font-bold uppercase shadow-sm hover:bg-slate-100 flex items-center gap-1 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <span className={`material-symbols-outlined text-[18px] ${isGettingGeo ? 'animate-spin' : ''}`}>
+              <span className={`material-symbols-outlined text-[15px] ${isGettingGeo ? 'animate-spin' : ''}`}>
                 {isGettingGeo ? 'progress_activity' : 'my_location'}
               </span>
-              {isGettingGeo ? 'Mencari Lokasi...' : 'Lokasi Saya'}
+              {isGettingGeo ? 'Mencari...' : 'Lokasi Saya'}
             </button>
 
             <button
               onClick={() => onCreateReportAt(null)}
-              className="px-4 py-2 bg-primary-600 text-white border border-slate-200 rounded-lg font-label text-xs sm:text-sm font-bold uppercase shadow-md hover:bg-primary-700 flex items-center gap-1.5 cursor-pointer"
+              className="px-3 py-1.5 bg-primary-600 text-white border border-primary-600 rounded-lg font-label text-xs font-bold uppercase shadow-sm hover:bg-primary-700 flex items-center gap-1 cursor-pointer"
             >
-              <span className="material-symbols-outlined text-[18px]">add_location_alt</span>
+              <span className="material-symbols-outlined text-[15px]">add_location_alt</span>
               Buat Laporan
             </button>
           </div>
         </div>
 
-        {/* City Tabs — semua kota + tampilan gabungan (scroll ke samping kalau kepanjangan) */}
-        <div className="bg-white border border-slate-200 rounded-xl p-2 flex flex-wrap gap-1.5 shadow-md overflow-x-auto">
-          <button
-            onClick={() => setSelectedCityName('all')}
-            className={`px-3 py-1.5 rounded-lg font-label text-xs whitespace-nowrap uppercase font-bold cursor-pointer transition-all ${
-              selectedCityName === 'all'
-                ? 'bg-slate-900 text-white shadow-sm'
-                : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'
-            }`}
-          >
-            🇮🇩 Semua Kota
-          </button>
-          {CITIES.map((c) => (
-            <button
-              key={c.name}
-              onClick={() => setSelectedCityName(c.name)}
-              className={`px-3 py-1.5 rounded-lg font-label text-xs whitespace-nowrap uppercase font-bold cursor-pointer transition-all ${
-                selectedCityName === c.name
-                  ? 'bg-primary-600 text-white shadow-sm'
-                  : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'
-              }`}
+        {/* Pemilih wilayah: dropdown Provinsi + dropdown Kota (kota mengikuti provinsi yang dipilih) */}
+        <div className="bg-white border border-slate-200 rounded-xl p-2.5 shadow-md flex flex-wrap items-center gap-2">
+          <span className="font-label text-xs text-slate-900 uppercase font-bold tracking-wider shrink-0 pl-1">
+            WILAYAH:
+          </span>
+
+          <div className="relative">
+            <select
+              value={selectedProvince ?? 'all'}
+              onChange={(e) => handleProvinceChange(e.target.value)}
+              className="appearance-none pl-4 pr-9 py-2 rounded-full border border-slate-200 bg-white font-label text-sm font-bold text-slate-900 cursor-pointer hover:bg-slate-50 focus:outline-none focus:border-primary-600 transition-colors min-w-[160px]"
             >
-              {c.name}
-            </button>
-          ))}
+              <option value="all">Semua Provinsi</option>
+              {PROVINCE_ORDER.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+            <span className="material-symbols-outlined pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[18px] text-slate-500">
+              expand_more
+            </span>
+          </div>
+
+          <div className="relative">
+            <select
+              value={selectedCityName}
+              onChange={(e) => setSelectedCityName(e.target.value)}
+              disabled={!selectedProvince}
+              className="appearance-none pl-4 pr-9 py-2 rounded-full border border-slate-200 bg-white font-label text-sm font-bold text-slate-900 cursor-pointer hover:bg-slate-50 focus:outline-none focus:border-primary-600 transition-colors min-w-[160px] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <option value="all">Semua Kota</option>
+              {provinceCities.map((c) => (
+                <option key={c.name} value={c.name}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            <span className="material-symbols-outlined pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[18px] text-slate-500">
+              expand_more
+            </span>
+          </div>
         </div>
       </div>
 
@@ -283,7 +337,9 @@ export const MapView: React.FC<MapViewProps> = ({ reports, onSelectReport, onCre
         <div className="absolute top-3 left-3 z-[1000] bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 shadow-md flex items-center gap-2">
           <span className="w-2.5 h-2.5 bg-rose-500 rounded-full animate-pulse"></span>
           <span className="font-label text-xs font-medium text-slate-900">
-            Peta Interaktif {selectedCityName === 'all' ? 'Indonesia' : selectedCityName} • {visibleReports.length} Titik Laporan
+            Peta Interaktif{' '}
+            {selectedCityName !== 'all' ? selectedCityName : selectedProvince ? selectedProvince : 'Indonesia'} •{' '}
+            {visibleReports.length} Titik Laporan
           </span>
         </div>
 
@@ -329,11 +385,7 @@ export const MapView: React.FC<MapViewProps> = ({ reports, onSelectReport, onCre
             noWrap
           />
 
-          <FlyToCity
-            center={center}
-            zoom={zoom}
-            bounds={selectedCityName === 'all' ? INDONESIA_BOUNDS : undefined}
-          />
+          <FlyToCity center={center} zoom={zoom} bounds={mapBounds} />
           <ClickToReport onPick={handlePickPoint} />
           <FlyToPoint point={myLocation} />
 
