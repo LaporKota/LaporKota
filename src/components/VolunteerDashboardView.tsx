@@ -174,14 +174,15 @@ export const VolunteerDashboardView: React.FC<VolunteerDashboardViewProps> = ({
       {/* Header */}
       <div className="flex flex-col gap-1">
         <span className="font-label text-xs font-bold text-primary-600 uppercase tracking-wider">
-          Ruang Relawan
+          {user.role === 'admin' ? 'Ruang Admin' : 'Ruang Relawan'}
         </span>
         <h1 className="font-headline text-2xl sm:text-3xl font-bold text-slate-900 uppercase">
-          Dashboard Relawan Saya
+          {user.role === 'admin' ? 'Dashboard Relawan & Anggota' : 'Dashboard Relawan Saya'}
         </h1>
         <p className="font-body text-sm text-slate-500 max-w-2xl">
-          Rekap semua aksi gotong royong yang sudah kamu ikuti lewat LaporKota, {user.name}. Terima kasih sudah jadi
-          bagian dari perubahan nyata di kota ini!
+          {user.role === 'admin'
+            ? `Pantau anggota yang terdaftar dan aksi gotong royong yang berjalan lewat LaporKota, ${user.name}.`
+            : `Rekap semua aksi gotong royong yang sudah kamu ikuti lewat LaporKota, ${user.name}. Terima kasih sudah jadi bagian dari perubahan nyata di kota ini!`}
         </p>
       </div>
 
