@@ -21,3 +21,14 @@ export function isItemUpvotedByUser(item: { upvotedBy?: string[] }, user: User |
   if (!item.upvotedBy || item.upvotedBy.length === 0) return false;
   return item.upvotedBy.includes(user.id);
 }
+
+// Sama seperti isUpvotedByUser, tapi untuk status "ikut aksi relawan". Sebelumnya UI membaca
+// `report.userJoinedVolunteer` langsung — itu flag GLOBAL yang di-set true di server begitu
+// SATU orang saja mendaftar, jadi semua pengunjung lain (termasuk yang belum login) ikut
+// kelihatan "Anda Relawan" walau mereka belum pernah daftar. Sumber kebenaran yang benar
+// adalah `report.volunteeredBy` (daftar id user yang benar-benar sudah daftar).
+export function isVolunteeredByUser(report: Report, user: User | null | undefined): boolean {
+  if (!user) return false;
+  if (!report.volunteeredBy || report.volunteeredBy.length === 0) return false;
+  return report.volunteeredBy.includes(user.id);
+}
