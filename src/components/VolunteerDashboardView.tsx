@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Report, User } from '../types';
 
 interface VolunteerDashboardViewProps {
@@ -49,6 +49,116 @@ const StatusBadge: React.FC<{ status: Report['status'] }> = ({ status }) => {
   );
 };
 
+interface AdminMember {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  domicile?: string;
+  createdAt: number;
+}
+
+// Anggota yang daftar dalam 7 hari terakhir dianggap "baru daftar"
+const NEW_MEMBER_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+const formatJoinDate = (ts: number) => {
+  if (!ts) return 'Tidak diketahui';
+  return new Date(ts).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+};
+
+// Section daftar anggota — cuma dirender & di-fetch kalau yang login adalah admin
+const AdminMembersSection: React.FC = () => {
+  const [members, setMembers] = useState<AdminMember[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    fetch('/api/admin/users', { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data.users)) setMembers(data.users);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const now = Date.now();
+  const newMembers = useMemo(
+    () => members.filter((m) => m.createdAt && now - m.createdAt <= NEW_MEMBER_WINDOW_MS),
+    [members]
+  );
+  const existingMembers = useMemo(
+    () => members.filter((m) => !m.createdAt || now - m.createdAt > NEW_MEMBER_WINDOW_MS),
+    [members]
+  );
+
+  return (
+    <div className="flex flex-col gap-4">
+      <h2 className="font-headline text-lg font-bold text-slate-900 uppercase border-b-2 border-slate-200 pb-2">
+        Anggota (Khusus Admin)
+      </h2>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-headline text-sm font-bold text-slate-900 uppercase flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary-600 text-[18px]">person_add</span>
+              Baru Mendaftar
+            </h3>
+            <span className="text-[11px] font-label text-slate-500">7 hari terakhir</span>
+          </div>
+          {loading ? (
+            <p className="font-body text-sm text-slate-400 py-4 text-center">Memuat data anggota...</p>
+          ) : newMembers.length === 0 ? (
+            <p className="font-body text-sm text-slate-400 py-4 text-center">
+              Belum ada anggota baru dalam 7 hari terakhir.
+            </p>
+          ) : (
+            <div className="flex flex-col divide-y divide-slate-100 max-h-[280px] overflow-y-auto">
+              {newMembers.map((m) => (
+                <div key={m.id} className="flex items-center justify-between gap-4 py-2.5">
+                  <div className="min-w-0">
+                    <p className="font-label text-sm font-bold text-slate-900 truncate">{m.name}</p>
+                    <p className="text-xs text-slate-500 truncate">{m.email}</p>
+                  </div>
+                  <span className="shrink-0 text-[11px] font-bold text-slate-500">{formatJoinDate(m.createdAt)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-headline text-sm font-bold text-slate-900 uppercase flex items-center gap-2">
+              <span className="material-symbols-outlined text-slate-900 text-[18px]">group</span>
+              Sudah Terdaftar
+            </h3>
+            <span className="text-[11px] font-label text-slate-500">Total {existingMembers.length}</span>
+          </div>
+          {loading ? (
+            <p className="font-body text-sm text-slate-400 py-4 text-center">Memuat data anggota...</p>
+          ) : existingMembers.length === 0 ? (
+            <p className="font-body text-sm text-slate-400 py-4 text-center">Belum ada anggota lama.</p>
+          ) : (
+            <div className="flex flex-col divide-y divide-slate-100 max-h-[280px] overflow-y-auto">
+              {existingMembers.map((m) => (
+                <div key={m.id} className="flex items-center justify-between gap-4 py-2.5">
+                  <div className="min-w-0">
+                    <p className="font-label text-sm font-bold text-slate-900 truncate">{m.name}</p>
+                    <p className="text-xs text-slate-500 truncate">{m.email}</p>
+                  </div>
+                  <span className="shrink-0 text-[11px] font-bold text-slate-500">{formatJoinDate(m.createdAt)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const VolunteerDashboardView: React.FC<VolunteerDashboardViewProps> = ({
   user,
   reports,
@@ -90,6 +200,9 @@ export const VolunteerDashboardView: React.FC<VolunteerDashboardViewProps> = ({
           <span className="font-headline text-3xl font-bold text-green-600">{totalSelesai}</span>
         </div>
       </div>
+
+      {/* Anggota — khusus admin */}
+      {user.role === 'admin' && <AdminMembersSection />}
 
       {/* List Aksi Relawan */}
       <div className="flex flex-col gap-4">
