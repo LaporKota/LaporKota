@@ -6,12 +6,14 @@ interface VolunteerModalProps {
   report: Report | null;
   onClose: () => void;
   onConfirmVolunteer: (reportId: string, volunteerData: { name: string; phone: string; role: string }) => void;
+  onNavigateToVolunteerDashboard: () => void;
 }
 
 export const VolunteerModal: React.FC<VolunteerModalProps> = ({
   report,
   onClose,
   onConfirmVolunteer,
+  onNavigateToVolunteerDashboard,
 }) => {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -75,15 +77,36 @@ export const VolunteerModal: React.FC<VolunteerModalProps> = ({
                 <p className="flex items-center gap-2"><MapPin size={14} className="shrink-0" /> <span><strong>Titik Kumpul:</strong> {report.location}</span></p>
                 <p className="flex items-center gap-2"><Clock size={14} className="shrink-0" /> <span><strong>Waktu:</strong> {report.volunteerActionDate || 'Sabtu Pagi, 07:30 WIB'}</span></p>
                 <p className="flex items-center gap-2"><Users size={14} className="shrink-0" /> <span><strong>Peran Anda:</strong> {role}</span></p>
-                <p className="flex items-start gap-2"><Phone size={14} className="shrink-0 mt-0.5" /> <span><strong>Konfirmasi WA:</strong> Link grup koordinasi lapangan telah dikirim ke nomor {phone}</span></p>
+                <p className="flex items-start gap-2"><Phone size={14} className="shrink-0 mt-0.5" /> <span><strong>Konfirmasi:</strong> Detail lengkap juga sudah kami kirim ke email Anda.</span></p>
               </div>
             </div>
 
+            <a
+              href="https://whatsapp.com/channel/0029Vb8s84jFCCoOSqRJ7t0m"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full bg-green-600 text-white border border-slate-200 rounded-lg py-3 font-label text-sm font-bold uppercase hover:bg-green-700 transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[18px]">chat</span>
+              Gabung Saluran WhatsApp Relawan
+            </a>
+
+            <button
+              onClick={() => {
+                onNavigateToVolunteerDashboard();
+                onClose();
+              }}
+              className="w-full bg-primary-600 text-white border border-slate-200 rounded-lg py-2.5 font-label text-xs font-bold uppercase hover:bg-primary-700 transition-all shadow-sm cursor-pointer flex items-center justify-center gap-2"
+            >
+              <span className="material-symbols-outlined text-[16px]">volunteer_activism</span>
+              Lihat Dashboard Relawan Saya
+            </button>
+
             <button
               onClick={onClose}
-              className="mt-2 w-full bg-primary-50 text-primary-700 border border-slate-200 rounded-lg py-3 font-headline text-base uppercase font-bold hover:bg-slate-100 hover:text-slate-900 transition-all shadow-md cursor-pointer"
+              className="w-full bg-white text-slate-500 border border-slate-200 rounded-lg py-2.5 font-label text-xs font-medium hover:bg-slate-100 transition-all cursor-pointer"
             >
-              SELESAI &amp; KEMBALI KE LAPORAN
+              Kembali ke Laporan
             </button>
           </div>
         ) : (
