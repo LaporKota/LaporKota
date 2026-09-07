@@ -170,7 +170,7 @@ export const ImpactView: React.FC<ImpactViewProps> = ({ reports, onOpenReportMod
                 style={{ width: `${sliderPosition}%` }}
               >
                 <img
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuBoZk0bpCla6hC9BfwKahestfAWIK6K3MSEDOOdUAR3qRC7sTWJOZkVpxO4WaQdbz7T6P3tuYRX2yE9iORQTH9teBIyxyGDEbOSBUWMFlM2JKBfSLFrsfr0CrOhXYgkneuQj40QCdWhkOFNTQKCMf0MP5zOmFg5LIQ7vz6gJ8hg8re6jcgIv246unBgUEjvVSSs70ex4yU6W7MtEvmZ9TK7RNpVh-w3_y0tbWgn0mVvvPDkl9SUDbA4cA"
+                  src="https://images.unsplash.com/photo-1742036953114-86479b041e81?auto=format&fit=crop&w=1200&q=80"
                   alt="Sebelum Perbaikan"
                   className="absolute inset-0 w-[1000px] max-w-none h-full object-cover grayscale contrast-125"
                 />
