@@ -31,9 +31,9 @@ Proyek ini berfokus pada **SDG 11 (Kota dan Komunitas Berkelanjutan)**, serta me
 | :---: | :---: |
 | ![Beranda LaporKota](https://i.imgur.com/230UxM9.png) | ![Dashboard Eco-Pulse](https://i.imgur.com/HIhHuSn.png) |
 
-| Peta Kota & Form Laporan | Forum Diskusi |
+| Peta SeIndonesia | Forum Diskusi |
 | :---: | :---: |
-| ![Peta Kota](https://i.imgur.com/r5hw8Cl.png) | ![Forum Diskusi](https://i.imgur.com/FydkCw2.png) |
+| ![Peta Indonesia Lengkap](https://i.imgur.com/4A4nLGf.png) | ![Forum Diskusi](https://i.imgur.com/FydkCw2.png) |
 
 ## Proses & Perjalanan Pengembangan
 
