@@ -118,7 +118,7 @@ export const VolunteerModal: React.FC<VolunteerModalProps> = ({
                 </span>
               </div>
               <span className="font-headline text-base font-bold bg-white border border-slate-200 px-2 py-0.5 text-slate-900">
-                {(report.volunteerCount || 0) + (report.userJoinedVolunteer ? 0 : 0)} Warga
+                {report.volunteerCount || 0} Warga
               </span>
             </div>
 
