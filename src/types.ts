@@ -56,6 +56,8 @@ export interface Report {
   priority: 'Tinggi' | 'Sedang' | 'Rendah';
   volunteerCount?: number;
   userJoinedVolunteer?: boolean;
+  volunteeredBy?: string[];
+  baseVolunteerCount?: number;
   volunteerActionDate?: string;
   updates: ReportUpdate[];
   comments: ReportComment[];
