@@ -6,7 +6,7 @@ import { StaggeredText } from './motion/StaggeredText';
 import { CountUpStat } from './motion/CountUpStat';
 import { customEasing, springConfig } from './motion/PageTransition';
 import { ShieldCheck, Leaf, Megaphone, Zap, Users, Building2, Activity } from 'lucide-react';
-import { isUpvotedByUser } from '../utils/upvote';
+import { isUpvotedByUser, isVolunteeredByUser } from '../utils/upvote';
 
 interface HomeViewProps {
   reports: Report[];
@@ -345,6 +345,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           {featuredReports.map((report) => {
             const catBadge = getCategoryBadge(report.category);
             const userUpvoted = isUpvotedByUser(report, user);
+            const userVolunteered = isVolunteeredByUser(report, user);
             return (
               <article
                 key={report.id}
@@ -423,15 +424,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
                         onOpenVolunteerModal(report);
                       }}
                       className={`w-full border border-slate-200 rounded-lg py-1.5 px-2 font-headline text-xs font-semibold transition-all duration-150 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 ${
-                        report.userJoinedVolunteer
+                        userVolunteered
                           ? 'bg-primary-600 text-white shadow-sm'
                           : 'bg-primary-600 hover:bg-primary-600 text-white shadow-sm'
                       }`}
                     >
                       <span className="material-symbols-outlined text-[15px]">volunteer_activism</span>
-                      <span>
-                        {report.userJoinedVolunteer ? 'Terdaftar Relawan' : 'Ikut Aksi Relawan'}
-                      </span>
+                      <span>{userVolunteered ? 'Terdaftar Relawan' : 'Ikut Aksi Relawan'}</span>
                       {report.volunteerCount ? (
                         <span className="bg-slate-900 text-white text-[10px] px-1 font-label">
                           {report.volunteerCount}
