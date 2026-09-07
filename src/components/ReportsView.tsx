@@ -4,7 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { Report, ReportStatus, ReportCategory, User } from '../types';
 import { GreenEduSection } from './GreenEduSection';
 import { Check } from 'lucide-react';
-import { isUpvotedByUser } from '../utils/upvote';
+import { isUpvotedByUser, isVolunteeredByUser } from '../utils/upvote';
 
 interface ReportsViewProps {
   reports: Report[];
@@ -273,6 +273,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           {displayedReports.map((report) => {
             const catBadge = getCategoryBadge(report.category, report.categoryLabel);
             const userUpvoted = isUpvotedByUser(report, user);
+            const userVolunteered = isVolunteeredByUser(report, user);
             return (
               <article
                 key={report.id}
@@ -300,7 +301,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                     </span>
                   </div>
 
-                  {report.userJoinedVolunteer && (
+                  {userVolunteered && (
                     <div className="absolute bottom-2 right-2 bg-green-600 text-white border border-slate-200 rounded-lg px-2 py-0.5 font-label text-[10px] font-bold shadow-sm flex items-center gap-1">
                       <Check size={12} /> Anda Relawan
                     </div>
@@ -384,14 +385,14 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                         }
                       }}
                       className={`w-full border border-slate-200 rounded-lg py-1.5 px-2 font-headline text-xs font-semibold transition-all duration-150 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 ${
-                        report.userJoinedVolunteer
+                        userVolunteered
                           ? 'bg-green-600 text-white shadow-sm'
                           : 'bg-primary-600 hover:bg-green-600 text-white shadow-sm'
                       }`}
                     >
                       <span className="material-symbols-outlined text-[16px]">volunteer_activism</span>
                       <span>
-                        {report.userJoinedVolunteer ? 'Terdaftar Relawan (Cek Detail)' : 'Ikut Aksi Relawan'}
+                        {userVolunteered ? 'Terdaftar Relawan (Cek Detail)' : 'Ikut Aksi Relawan'}
                       </span>
                       {report.volunteerCount ? (
                         <span className="bg-slate-900 text-white text-[10px] px-1.5 py-0.2 font-label">
