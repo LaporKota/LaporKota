@@ -32,8 +32,27 @@ const PRIORITY_COLORS: Record<string, string> = {
   Rendah: '#0d9488',
 };
 
+interface AdminMember {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  domicile?: string;
+  createdAt: number;
+}
+
+// Anggota yang daftar dalam 7 hari terakhir dianggap "baru daftar"
+const NEW_MEMBER_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+const formatJoinDate = (ts: number) => {
+  if (!ts) return 'Tidak diketahui';
+  return new Date(ts).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+};
+
 export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ user, reports, onNavigateToReports, onOpenReport }) => {
   const [totalUsers, setTotalUsers] = useState<number | null>(null);
+  const [members, setMembers] = useState<AdminMember[]>([]);
+  const [membersLoading, setMembersLoading] = useState(true);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -44,7 +63,25 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ user, re
         if (typeof data.totalUsers === 'number') setTotalUsers(data.totalUsers);
       })
       .catch(() => {});
+
+    fetch('/api/admin/users', { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data.users)) setMembers(data.users);
+      })
+      .catch(() => {})
+      .finally(() => setMembersLoading(false));
   }, []);
+
+  const now = Date.now();
+  const newMembers = useMemo(
+    () => members.filter((m) => m.createdAt && now - m.createdAt <= NEW_MEMBER_WINDOW_MS),
+    [members]
+  );
+  const existingMembers = useMemo(
+    () => members.filter((m) => !m.createdAt || now - m.createdAt > NEW_MEMBER_WINDOW_MS),
+    [members]
+  );
 
   const newReports = reports.filter(r => r.status === 'baru').length;
   const inProgress = reports.filter(r => r.status === 'diproses').length;
@@ -222,6 +259,64 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ user, re
             ))}
           </div>
         )}
+      </motion.section>
+
+      <motion.section variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-lg">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-headline text-xl uppercase font-bold text-slate-900 flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary-600">person_add</span>
+              Baru Mendaftar
+            </h3>
+            <span className="text-xs font-label text-slate-500">7 hari terakhir</span>
+          </div>
+          {membersLoading ? (
+            <p className="font-body text-sm text-slate-400 py-6 text-center">Memuat data anggota...</p>
+          ) : newMembers.length === 0 ? (
+            <p className="font-body text-sm text-slate-400 py-6 text-center">
+              Belum ada anggota baru dalam 7 hari terakhir.
+            </p>
+          ) : (
+            <div className="flex flex-col divide-y divide-slate-100 max-h-[320px] overflow-y-auto">
+              {newMembers.map((m) => (
+                <div key={m.id} className="flex items-center justify-between gap-4 py-3">
+                  <div className="min-w-0">
+                    <p className="font-label text-sm font-bold text-slate-900 truncate">{m.name}</p>
+                    <p className="text-xs text-slate-500 truncate">{m.email}</p>
+                  </div>
+                  <span className="shrink-0 text-[11px] font-bold text-slate-500">{formatJoinDate(m.createdAt)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-lg">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-headline text-xl uppercase font-bold text-slate-900 flex items-center gap-2">
+              <span className="material-symbols-outlined text-slate-900">group</span>
+              Sudah Terdaftar
+            </h3>
+            <span className="text-xs font-label text-slate-500">Total {existingMembers.length}</span>
+          </div>
+          {membersLoading ? (
+            <p className="font-body text-sm text-slate-400 py-6 text-center">Memuat data anggota...</p>
+          ) : existingMembers.length === 0 ? (
+            <p className="font-body text-sm text-slate-400 py-6 text-center">Belum ada anggota lama.</p>
+          ) : (
+            <div className="flex flex-col divide-y divide-slate-100 max-h-[320px] overflow-y-auto">
+              {existingMembers.map((m) => (
+                <div key={m.id} className="flex items-center justify-between gap-4 py-3">
+                  <div className="min-w-0">
+                    <p className="font-label text-sm font-bold text-slate-900 truncate">{m.name}</p>
+                    <p className="text-xs text-slate-500 truncate">{m.email}</p>
+                  </div>
+                  <span className="shrink-0 text-[11px] font-bold text-slate-500">{formatJoinDate(m.createdAt)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </motion.section>
 
       <motion.section variants={itemVariants} className="mt-2">
