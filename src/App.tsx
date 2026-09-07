@@ -89,6 +89,12 @@ const App: React.FC = () => {
     }
   }, [currentTab, user]);
 
+  // Scroll ke paling atas setiap kali pindah halaman/tab — tanpa ini, halaman baru muncul
+  // di posisi scroll terakhir (kelihatan "muncul dari tengah") kalau sebelumnya sempat di-scroll ke bawah.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [currentTab]);
+
   // ===================== AUTH HELPERS =====================
   const authHeaders = (): Record<string, string> =>
     token
