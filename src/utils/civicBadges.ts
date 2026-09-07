@@ -45,3 +45,19 @@ export function getSpecialistBadge(myCreatedReports: Report[]): CivicBadge | nul
   }
   return null;
 }
+
+// Sticker perayaan random — muncul di layar sukses setelah warga berhasil mengirim laporan.
+// Bukan reputasi permanen, cuma "hadiah" kecil biar momen kirim laporan berasa lebih hidup.
+const CELEBRATION_BADGES: CivicBadge[] = [
+  { emoji: '🎉', label: 'Warga Peduli Kota!', colorClass: 'bg-primary-600 text-white' },
+  { emoji: '🦸', label: 'Aksi Kecil, Dampak Besar!', colorClass: 'bg-yellow-400 text-slate-900' },
+  { emoji: '🏅', label: 'Pejuang Lapor Hari Ini', colorClass: 'bg-slate-900 text-white' },
+  { emoji: '🌟', label: 'Mata & Telinga Kota', colorClass: 'bg-amber-400 text-slate-900' },
+  { emoji: '📢', label: 'Suara Warga Didengar!', colorClass: 'bg-rose-500 text-white' },
+  { emoji: '💪', label: 'Kota Lebih Baik Dimulai Darimu', colorClass: 'bg-green-600 text-white' },
+  { emoji: '🛡️', label: 'Garda Depan Lingkungan', colorClass: 'bg-sky-500 text-white' },
+];
+
+export function getRandomCelebrationBadge(): CivicBadge {
+  return CELEBRATION_BADGES[Math.floor(Math.random() * CELEBRATION_BADGES.length)];
+}
