@@ -437,7 +437,7 @@ export const PORTFOLIO_PROJECTS: PortfolioCaseStudy[] = [
     partner: 'Dinas Pertamanan & Tim Riset Iklim Perkotaan',
     year: '2024',
     status: 'Pilot Terverifikasi',
-    coverImage: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAfwJRph6sfFILt6isCntY_ikP2Awvh53h1lah90xKwhpwV3WO8lWIasOKau4ML_JvlFw202bCxEMlAN3OwtJkEmb00wn8ctEASCUHXxMZm3W-p2z3yVCPPQb6WWp-ITHXhoNzq74iEkKs7gDTlnHHZO3vr9NfATBHtob3nDmcuwqPLqQExsNryDtWAObdbnJ4dGHYJ3IGFtLfB_7js3mqMQnhGghsT0lI94e_68ZmfMr4jA_BLy2fF9g',
+    coverImage: 'https://lh3.googleusercontent.com/aida-public/AB6AXuC2gQqFQHEQO9HX3UCRwGaSP7MU4VgOee0yugmDuuAr14tRs3qRb88LovdflUICNqxBg3T9FPySoebOY6o9ik9eDZwP2xVQKoC90lUX-If4yFZ7NKelIjbA6RavMDooLQ3qrcc15jlRMhnsrE9OziQbGvGDmh0F-bqatoH4xJ1rOhVqflw9sNYjNxtbEw_5ugcIaxXPqgiLNybssn1eRuF_ET_JP6pzFcXyKbCdWKvjoV6arXypXvTwHw',
     summary: 'Stasiun iklim mikro terintegrasi AI yang memonitor evapotranspirasi tanah, suhu UHI, dan mengontrol irigasi tetes air hujan secara presisi.',
     problemStatement: 'Taman kota mengalami kekeringan saat kemarau dan pemborosan air PDAM untuk penyiraman manual tanpa data kelembapan tanah.',
     solutionArchitecture: [
