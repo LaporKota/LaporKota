@@ -7,6 +7,7 @@ import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { INITIAL_REPORTS } from './src/data/initialReports';
 import { INITIAL_FORUM_TOPICS } from './src/data/greenEcoData';
+import { sendVolunteerConfirmationEmail } from './email';
 
 // Initialize SQLite DB
 const db = createClient({
@@ -562,6 +563,20 @@ async function startServer() {
 
       await saveReport(req.params.id, report);
       res.json({ report });
+
+      // Kirim email konfirmasi secara async (tidak menunggu / tidak menggagalkan
+      // response di atas kalau pengiriman emailnya lambat atau gagal).
+      if (!alreadyJoined && name) {
+        sendVolunteerConfirmationEmail({
+          to: req.user.email,
+          volunteerName: name,
+          reportTitle: report.title,
+          location: report.location,
+          schedule: report.volunteerActionDate || 'Sabtu Pagi, 07:30 WIB',
+          role: role || 'Relawan',
+          whatsappChannelUrl: 'https://whatsapp.com/channel/0029Vb8s84jFCCoOSqRJ7t0m',
+        }).catch((err) => console.error('[email] volunteer confirmation gagal:', err));
+      }
     } catch (error) {
       console.error('Volunteer error:', error);
       res.status(500).json({ error: 'Terjadi kesalahan pada server' });
