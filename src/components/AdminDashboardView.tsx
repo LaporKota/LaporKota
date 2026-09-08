@@ -39,20 +39,41 @@ interface AdminMember {
   phone?: string;
   domicile?: string;
   createdAt: number;
+  lastActiveAt: number;
 }
 
-// Anggota yang daftar dalam 7 hari terakhir dianggap "baru daftar"
-const NEW_MEMBER_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+// User dianggap "online sekarang" kalau request terakhirnya kurang dari 2 menit lalu
+const ONLINE_WINDOW_MS = 2 * 60 * 1000;
+// Polling interval biar list-nya kerasa realtime tanpa perlu websocket
+const MEMBERS_POLL_MS = 15 * 1000;
 
-const formatJoinDate = (ts: number) => {
+const formatJoinDateTime = (ts: number) => {
   if (!ts) return 'Tidak diketahui';
-  return new Date(ts).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+  return new Date(ts).toLocaleString('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
+const formatRelativeActive = (ts: number) => {
+  if (!ts) return 'Belum pernah aktif';
+  const diffMs = Date.now() - ts;
+  if (diffMs < 60 * 1000) return 'Baru saja';
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 60) return `${diffMin} menit lalu`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour} jam lalu`;
+  return formatJoinDateTime(ts);
 };
 
 export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ user, reports, onNavigateToReports, onOpenReport }) => {
   const [totalUsers, setTotalUsers] = useState<number | null>(null);
   const [members, setMembers] = useState<AdminMember[]>([]);
   const [membersLoading, setMembersLoading] = useState(true);
+  const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -64,22 +85,32 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ user, re
       })
       .catch(() => {});
 
-    fetch('/api/admin/users', { headers: { Authorization: `Bearer ${token}` } })
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data.users)) setMembers(data.users);
-      })
-      .catch(() => {})
-      .finally(() => setMembersLoading(false));
+    const fetchMembers = () => {
+      fetch('/api/admin/users', { headers: { Authorization: `Bearer ${token}` } })
+        .then((res) => res.json())
+        .then((data) => {
+          if (Array.isArray(data.users)) setMembers(data.users);
+        })
+        .catch(() => {})
+        .finally(() => setMembersLoading(false));
+    };
+
+    fetchMembers();
+    // Polling biar "online sekarang" & daftar anggota kerasa realtime
+    const pollId = setInterval(fetchMembers, MEMBERS_POLL_MS);
+    const clockId = setInterval(() => setNow(Date.now()), 15 * 1000);
+    return () => {
+      clearInterval(pollId);
+      clearInterval(clockId);
+    };
   }, []);
 
-  const now = Date.now();
-  const newMembers = useMemo(
-    () => members.filter((m) => m.createdAt && now - m.createdAt <= NEW_MEMBER_WINDOW_MS),
-    [members]
+  const onlineMembers = useMemo(
+    () => members.filter((m) => m.lastActiveAt && now - m.lastActiveAt <= ONLINE_WINDOW_MS),
+    [members, now]
   );
-  const existingMembers = useMemo(
-    () => members.filter((m) => !m.createdAt || now - m.createdAt > NEW_MEMBER_WINDOW_MS),
+  const allMembersSorted = useMemo(
+    () => [...members].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)),
     [members]
   );
 
@@ -265,26 +296,32 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ user, re
         <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-lg">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-headline text-xl uppercase font-bold text-slate-900 flex items-center gap-2">
-              <span className="material-symbols-outlined text-primary-600">person_add</span>
-              Baru Mendaftar
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+              </span>
+              Online Sekarang
             </h3>
-            <span className="text-xs font-label text-slate-500">7 hari terakhir</span>
+            <span className="text-xs font-label text-slate-500">Total {onlineMembers.length}</span>
           </div>
           {membersLoading ? (
             <p className="font-body text-sm text-slate-400 py-6 text-center">Memuat data anggota...</p>
-          ) : newMembers.length === 0 ? (
+          ) : onlineMembers.length === 0 ? (
             <p className="font-body text-sm text-slate-400 py-6 text-center">
-              Belum ada anggota baru dalam 7 hari terakhir.
+              Tidak ada anggota yang sedang online saat ini.
             </p>
           ) : (
             <div className="flex flex-col divide-y divide-slate-100 max-h-[320px] overflow-y-auto">
-              {newMembers.map((m) => (
+              {onlineMembers.map((m) => (
                 <div key={m.id} className="flex items-center justify-between gap-4 py-3">
-                  <div className="min-w-0">
-                    <p className="font-label text-sm font-bold text-slate-900 truncate">{m.name}</p>
-                    <p className="text-xs text-slate-500 truncate">{m.email}</p>
+                  <div className="min-w-0 flex items-center gap-2">
+                    <span className="shrink-0 h-2 w-2 rounded-full bg-green-500" />
+                    <div className="min-w-0">
+                      <p className="font-label text-sm font-bold text-slate-900 truncate">{m.name}</p>
+                      <p className="text-xs text-slate-500 truncate">{m.email}</p>
+                    </div>
                   </div>
-                  <span className="shrink-0 text-[11px] font-bold text-slate-500">{formatJoinDate(m.createdAt)}</span>
+                  <span className="shrink-0 text-[11px] font-bold text-green-600">{formatRelativeActive(m.lastActiveAt)}</span>
                 </div>
               ))}
             </div>
@@ -295,23 +332,25 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ user, re
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-headline text-xl uppercase font-bold text-slate-900 flex items-center gap-2">
               <span className="material-symbols-outlined text-slate-900">group</span>
-              Sudah Terdaftar
+              Semua Anggota
             </h3>
-            <span className="text-xs font-label text-slate-500">Total {existingMembers.length}</span>
+            <span className="text-xs font-label text-slate-500">Total {allMembersSorted.length}</span>
           </div>
           {membersLoading ? (
             <p className="font-body text-sm text-slate-400 py-6 text-center">Memuat data anggota...</p>
-          ) : existingMembers.length === 0 ? (
-            <p className="font-body text-sm text-slate-400 py-6 text-center">Belum ada anggota lama.</p>
+          ) : allMembersSorted.length === 0 ? (
+            <p className="font-body text-sm text-slate-400 py-6 text-center">Belum ada anggota terdaftar.</p>
           ) : (
             <div className="flex flex-col divide-y divide-slate-100 max-h-[320px] overflow-y-auto">
-              {existingMembers.map((m) => (
+              {allMembersSorted.map((m) => (
                 <div key={m.id} className="flex items-center justify-between gap-4 py-3">
                   <div className="min-w-0">
                     <p className="font-label text-sm font-bold text-slate-900 truncate">{m.name}</p>
                     <p className="text-xs text-slate-500 truncate">{m.email}</p>
                   </div>
-                  <span className="shrink-0 text-[11px] font-bold text-slate-500">{formatJoinDate(m.createdAt)}</span>
+                  <span className="shrink-0 text-[11px] font-bold text-slate-500 text-right">
+                    Daftar: {formatJoinDateTime(m.createdAt)}
+                  </span>
                 </div>
               ))}
             </div>
