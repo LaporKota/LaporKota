@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Report, User } from '../types';
 
 interface VolunteerDashboardViewProps {
@@ -49,6 +49,117 @@ const StatusBadge: React.FC<{ status: Report['status'] }> = ({ status }) => {
   );
 };
 
+interface AdminMemberLite {
+  id: string;
+  name: string;
+  email: string;
+}
+
+// Panel admin: daftar peserta relawan di SETIAP laporan, realtime-ish (di-refresh berkala)
+const AdminVolunteerRosterSection: React.FC<{ reports: Report[]; onSelectReport: (report: Report) => void }> = ({
+  reports,
+  onSelectReport,
+}) => {
+  const [memberMap, setMemberMap] = useState<Record<string, AdminMemberLite>>({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    const fetchMembers = () => {
+      fetch('/api/admin/users', { headers: { Authorization: `Bearer ${token}` } })
+        .then((res) => res.json())
+        .then((data) => {
+          if (Array.isArray(data.users)) {
+            const map: Record<string, AdminMemberLite> = {};
+            data.users.forEach((u: AdminMemberLite) => {
+              map[u.id] = u;
+            });
+            setMemberMap(map);
+          }
+        })
+        .catch(() => {})
+        .finally(() => setLoading(false));
+    };
+
+    fetchMembers();
+    // Refresh berkala biar daftar peserta ke-update kalau ada yang baru gabung
+    const pollId = setInterval(fetchMembers, 15000);
+    return () => clearInterval(pollId);
+  }, []);
+
+  // Laporan yang punya relawan ditaruh di atas, sisanya tetap ditampilkan di bawah
+  const sortedReports = useMemo(
+    () =>
+      [...reports].sort(
+        (a, b) => (b.volunteeredBy || []).length - (a.volunteeredBy || []).length
+      ),
+    [reports]
+  );
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <h2 className="font-headline text-lg font-bold text-slate-900 uppercase border-b-2 border-slate-200 pb-2 flex-grow">
+          Peserta Relawan per Laporan
+        </h2>
+      </div>
+
+      {loading ? (
+        <p className="font-body text-sm text-slate-400 py-6 text-center">Memuat data peserta...</p>
+      ) : sortedReports.length === 0 ? (
+        <p className="font-body text-sm text-slate-400 py-6 text-center">Belum ada laporan.</p>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {sortedReports.map((report) => {
+            const volunteerIds = report.volunteeredBy || [];
+            return (
+              <div key={report.id} className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                <button
+                  onClick={() => onSelectReport(report)}
+                  className="text-left flex items-start justify-between gap-4 w-full mb-3"
+                >
+                  <div className="min-w-0">
+                    <h3 className="font-headline text-sm font-bold text-slate-900 uppercase truncate">
+                      {report.title}
+                    </h3>
+                    <p className="text-xs text-slate-500 truncate">{report.location}</p>
+                  </div>
+                  <span className="shrink-0 font-label text-[11px] font-bold text-slate-500 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">groups</span>
+                    {volunteerIds.length} Peserta
+                  </span>
+                </button>
+
+                {volunteerIds.length === 0 ? (
+                  <p className="font-body text-xs text-slate-400 py-2">Belum ada relawan yang bergabung.</p>
+                ) : (
+                  <div className="flex flex-col divide-y divide-slate-100 border-t border-slate-100">
+                    {volunteerIds.map((id) => {
+                      const member = memberMap[id];
+                      return (
+                        <div key={id} className="flex items-center justify-between gap-4 py-2">
+                          <div className="min-w-0">
+                            <p className="font-label text-sm font-bold text-slate-900 truncate">
+                              {member?.name || 'Pengguna tidak diketahui'}
+                            </p>
+                            {member?.email && <p className="text-xs text-slate-500 truncate">{member.email}</p>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const VolunteerDashboardView: React.FC<VolunteerDashboardViewProps> = ({
   user,
   reports,
@@ -65,27 +176,21 @@ export const VolunteerDashboardView: React.FC<VolunteerDashboardViewProps> = ({
       {/* Header */}
       <div className="flex flex-col gap-1">
         <span className="font-label text-xs font-bold text-primary-600 uppercase tracking-wider">
-          Ruang Relawan
+          {isAdmin ? 'Ruang Admin' : 'Ruang Relawan'}
         </span>
         <h1 className="font-headline text-2xl sm:text-3xl font-bold text-slate-900 uppercase">
-          Dashboard Relawan Saya
+          {isAdmin ? 'Peserta Relawan Semua Laporan' : 'Dashboard Relawan Saya'}
         </h1>
         <p className="font-body text-sm text-slate-500 max-w-2xl">
-          Rekap semua aksi gotong royong yang sudah kamu ikuti lewat LaporKota, {user.name}. Terima kasih sudah jadi
-          bagian dari perubahan nyata di kota ini!
+          {isAdmin
+            ? 'Pantau siapa saja yang bergabung sebagai relawan di setiap laporan warga, diperbarui berkala.'
+            : `Rekap semua aksi gotong royong yang sudah kamu ikuti lewat LaporKota, ${user.name}. Terima kasih sudah jadi bagian dari perubahan nyata di kota ini!`}
         </p>
       </div>
 
-      {/* Stats & Aksi Relawan — hanya untuk relawan biasa, tidak relevan untuk admin */}
+      {/* Untuk admin: daftar peserta relawan di setiap laporan. Untuk relawan biasa: statistik & aksi pribadi. */}
       {isAdmin ? (
-        <div className="bg-white border border-slate-200 rounded-xl p-8 sm:p-12 flex flex-col items-center text-center gap-2 shadow-sm">
-          <span className="material-symbols-outlined text-[36px] text-slate-300">admin_panel_settings</span>
-          <p className="font-body text-sm text-slate-500 max-w-md">
-            Kamu login sebagai admin. Statistik aksi relawan pribadi ada di sini kalau kamu ikut sebagai relawan
-            biasa — untuk kelola laporan &amp; anggota, buka tab{' '}
-            <span className="font-bold text-slate-700">Admin</span>.
-          </p>
-        </div>
+        <AdminVolunteerRosterSection reports={reports} onSelectReport={onSelectReport} />
       ) : (
         <>
           {/* Stats */}
