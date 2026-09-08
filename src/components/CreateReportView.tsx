@@ -11,8 +11,24 @@ export interface ReportLocationPrefill {
   address?: string;
 }
 
+// Deskripsi minimal 10 karakter (sinkron dengan validasi di server.ts) — divalidasi di sisi klien
+// dulu supaya user dapat peringatan LANGSUNG, tanpa harus submit dulu ke server baru tahu salah.
+const MIN_DESKRIPSI_LENGTH = 10;
+
+// Key sessionStorage buat "titip" isian form sesaat sebelum user pindah ke tab Peta lewat tombol
+// "Pilih di Peta". Form ini di-unmount total saat tab berpindah (lihat App.tsx), jadi tanpa ini
+// semua yang sudah diketik (judul, kategori, deskripsi, foto) akan hilang begitu user kembali.
+const CREATE_REPORT_DRAFT_KEY = 'lk_create_report_draft';
+
+interface CreateReportDraft {
+  judul: string;
+  kategori: string;
+  deskripsi: string;
+  photoPreview: string | null;
+}
+
 interface CreateReportViewProps {
-  onSubmitReport: (newReport: Partial<Report>) => void;
+  onSubmitReport: (newReport: Partial<Report>) => Promise<boolean>;
   onCancel: () => void;
   initialLocation: ReportLocationPrefill | null;
   onClearInitialLocation: () => void;
@@ -28,12 +44,28 @@ export const CreateReportView: React.FC<CreateReportViewProps> = ({
   onPickOnMap,
   user,
 }) => {
-  const [judul, setJudul] = useState('');
-  const [kategori, setKategori] = useState<string>('');
-  const [deskripsi, setDeskripsi] = useState('');
+  // Kalau form ini dibuka ULANG dengan initialLocation (artinya user baru saja pilih titik di
+  // peta lewat tombol "Pilih di Peta"), coba pulihkan isian sebelumnya yang sempat dititipkan ke
+  // sessionStorage. Dibaca & langsung dihapus sekali pakai (lazy initializer -> jalan sekali saja).
+  const [restoredDraft] = useState<CreateReportDraft | null>(() => {
+    if (!initialLocation) return null;
+    try {
+      const raw = sessionStorage.getItem(CREATE_REPORT_DRAFT_KEY);
+      if (!raw) return null;
+      sessionStorage.removeItem(CREATE_REPORT_DRAFT_KEY);
+      return JSON.parse(raw) as CreateReportDraft;
+    } catch {
+      return null;
+    }
+  });
+
+  const [judul, setJudul] = useState(restoredDraft?.judul || '');
+  const [kategori, setKategori] = useState<string>(restoredDraft?.kategori || '');
+  const [deskripsi, setDeskripsi] = useState(restoredDraft?.deskripsi || '');
+  const [deskripsiTouched, setDeskripsiTouched] = useState(false);
   const [kota, setKota] = useState<string>(initialLocation?.city || CITIES[0].name);
   const [lokasi, setLokasi] = useState(initialLocation?.address || '');
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(restoredDraft?.photoPreview || null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formSuccess, setFormSuccess] = useState(false);
 
@@ -119,6 +151,18 @@ export const CreateReportView: React.FC<CreateReportViewProps> = ({
     }
   };
 
+  // Titipkan isian form yang sudah diketik sebelum lompat ke tab Peta, supaya bisa dipulihkan
+  // lagi (lihat restoredDraft di atas) begitu user selesai pilih titik & kembali ke form ini.
+  const handlePickOnMapClick = () => {
+    try {
+      const draft: CreateReportDraft = { judul, kategori, deskripsi, photoPreview };
+      sessionStorage.setItem(CREATE_REPORT_DRAFT_KEY, JSON.stringify(draft));
+    } catch {
+      // sessionStorage tidak tersedia (mis. mode private) — abaikan, tetap lanjut ke peta
+    }
+    onPickOnMap();
+  };
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -153,9 +197,16 @@ export const CreateReportView: React.FC<CreateReportViewProps> = ({
     setPhotoPreview(sampleImages[categoryType] || sampleImages.sampah);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const deskripsiValid = deskripsi.trim().length >= MIN_DESKRIPSI_LENGTH;
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!judul || !kategori || !deskripsi || !lokasi || !kota) return;
+
+    // Validasi deskripsi minimal 10 karakter DI SINI DULU, sebelum apa-apa dikirim ke server.
+    // Kalau belum cukup, tandai field-nya "touched" biar peringatan di bawah textarea langsung
+    // muncul — user gak perlu nunggu submit gagal dulu baru tahu ada yang salah.
+    if (!deskripsiValid) setDeskripsiTouched(true);
+    if (!judul || !kategori || !deskripsiValid || !lokasi || !kota) return;
 
     setIsSubmitting(true);
 
@@ -179,50 +230,58 @@ export const CreateReportView: React.FC<CreateReportViewProps> = ({
       photoPreview ||
       'https://lh3.googleusercontent.com/aida-public/AB6AXuCWr_lkpfQCI44JNAXYqVGOligdK6hKpa2qXvASY05dcYN1CuURLlcUnFmmexUoZNL1WR18HuYH97K4vYIPYyMgVlDEEmKAhGudGDu_O2e0D1fysBrtk7Q0JA9obSrTY2uTT8-khG8Cs_4t2B60wEMSLQGflPbV0kUVY06PUNY8ieDKTuSaS8_eYKyXIiP2RA_whGxHmUM88yCSFPM-R3giOEPjuIImwxerYR6wOASYEZWLm1Mfe5G_XQ';
 
-    setTimeout(() => {
-      onSubmitReport({
-        title: judul,
-        category: catInfo.value as any,
-        categoryLabel: catInfo.label,
-        categoryIcon: catInfo.icon,
-        description: deskripsi,
-        location: lokasi,
-        city: kota,
-        lat,
-        lng,
-        timeAgo: 'Baru saja',
-        timestamp: Date.now(),
-        status: 'baru',
-        upvotes: 1,
-        upvotedBy: user ? [user.id] : [],
-        imageUrl: defaultImg,
-        priority: 'Tinggi',
-        reporterName: user?.name || 'Warga',
-        updates: [],
-        comments: [],
-        userJoinedVolunteer: false,
-        volunteerCount: 0,
-      });
+    // PENTING: tunggu hasil pengiriman yang SEBENARNYA sebelum menganggap berhasil.
+    // Sebelumnya form langsung dianggap sukses & dikosongkan tanpa menunggu balasan server,
+    // jadi kalau server menolak (mis. deskripsi kurang dari 10 karakter), layar sukses tetap
+    // muncul dan semua isian yang sudah capek-capek diketik ikut hilang padahal belum terkirim.
+    const success = await onSubmitReport({
+      title: judul,
+      category: catInfo.value as any,
+      categoryLabel: catInfo.label,
+      categoryIcon: catInfo.icon,
+      description: deskripsi,
+      location: lokasi,
+      city: kota,
+      lat,
+      lng,
+      timeAgo: 'Baru saja',
+      timestamp: Date.now(),
+      status: 'baru',
+      upvotes: 1,
+      upvotedBy: user ? [user.id] : [],
+      imageUrl: defaultImg,
+      priority: 'Tinggi',
+      reporterName: user?.name || 'Warga',
+      updates: [],
+      comments: [],
+      userJoinedVolunteer: false,
+      volunteerCount: 0,
+    });
 
-      setIsSubmitting(false);
-      setSubmittedSummary({
-        title: judul,
-        categoryLabel: catInfo.label,
-        location: lokasi,
-        city: kota,
-        imageUrl: defaultImg,
-      });
-      setCelebrationBadge(getRandomCelebrationBadge());
-      setFormSuccess(true);
-      setJudul('');
-      setKategori('');
-      setDeskripsi('');
-      setLokasi('');
-      setPhotoPreview(null);
-      setCoords(null);
-      setLocationSource(null);
-      onClearInitialLocation();
-    }, 500);
+    setIsSubmitting(false);
+
+    // Gagal (mis. ditolak server) -> JANGAN dikosongkan. Biarkan semua isian tetap ada supaya
+    // user tinggal perbaiki bagian yang salah, tidak perlu mengetik ulang dari nol.
+    if (!success) return;
+
+    setSubmittedSummary({
+      title: judul,
+      categoryLabel: catInfo.label,
+      location: lokasi,
+      city: kota,
+      imageUrl: defaultImg,
+    });
+    setCelebrationBadge(getRandomCelebrationBadge());
+    setFormSuccess(true);
+    setJudul('');
+    setKategori('');
+    setDeskripsi('');
+    setDeskripsiTouched(false);
+    setLokasi('');
+    setPhotoPreview(null);
+    setCoords(null);
+    setLocationSource(null);
+    onClearInitialLocation();
   };
 
   // Reset layar sukses dan balik ke form kosong untuk lapor lagi
@@ -415,9 +474,27 @@ export const CreateReportView: React.FC<CreateReportViewProps> = ({
               rows={3}
               value={deskripsi}
               onChange={(e) => setDeskripsi(e.target.value)}
+              onBlur={() => setDeskripsiTouched(true)}
               placeholder="Jelaskan secara detail masalah yang Anda temukan..."
-              className="border border-slate-200 rounded-lg p-2.5 focus:border-primary-600 focus:ring-0 transition-all font-body text-sm resize-none bg-white shadow-inner outline-none"
+              aria-invalid={deskripsiTouched && !deskripsiValid}
+              className={`border rounded-lg p-2.5 focus:ring-0 transition-all font-body text-sm resize-none bg-white shadow-inner outline-none ${
+                deskripsiTouched && !deskripsiValid
+                  ? 'border-rose-500 focus:border-rose-500'
+                  : 'border-slate-200 focus:border-primary-600'
+              }`}
             />
+            <p
+              className={`text-[11px] font-body flex items-center gap-1 ${
+                deskripsiTouched && !deskripsiValid ? 'text-rose-500 font-semibold' : 'text-slate-500'
+              }`}
+            >
+              {deskripsiTouched && !deskripsiValid && (
+                <span className="material-symbols-outlined text-[13px]">error</span>
+              )}
+              {deskripsiValid
+                ? `${deskripsi.trim().length} karakter`
+                : `Deskripsi minimal ${MIN_DESKRIPSI_LENGTH} karakter (${deskripsi.trim().length}/${MIN_DESKRIPSI_LENGTH})`}
+            </p>
           </div>
 
           {/* Kota */}
@@ -465,7 +542,7 @@ export const CreateReportView: React.FC<CreateReportViewProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={onPickOnMap}
+                  onClick={handlePickOnMapClick}
                   className="text-[11px] font-label uppercase text-primary-600 font-bold hover:underline cursor-pointer"
                 >
                   Pilih di peta
