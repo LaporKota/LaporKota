@@ -96,7 +96,22 @@ export async function getCurrentPosition(): Promise<GeoPosition> {
     await new Promise((r) => setTimeout(r, 800));
     try {
       return await requestPositionOnce(options);
-    } catch {
+    } catch (err2: any) {
+      // Log detail ke console (F12 > Console) supaya gampang didiagnosis kalau masih gagal terus —
+      // kode 2 = POSITION_UNAVAILABLE (backend lokasi browser/OS gagal nentuin posisi),
+      // kode 3 = TIMEOUT (kelamaan nunggu, jaringan/GPS lambat).
+      console.error('Geolocation gagal setelah retry:', { code: err2?.code, message: err2?.message });
+
+      if (err2?.code === err2?.TIMEOUT) {
+        throw new Error(
+          'Deteksi lokasi kelamaan (timeout). Coba lagi sebentar lagi, atau pilih lokasi lewat peta / isi manual.'
+        );
+      }
+      if (err2?.code === err2?.POSITION_UNAVAILABLE) {
+        throw new Error(
+          'Perangkat/browser tidak bisa menentukan posisi Anda saat ini (layanan lokasi OS mungkin nonaktif). Silakan pilih lokasi lewat peta atau isi manual.'
+        );
+      }
       throw new Error('Gagal mendapatkan lokasi Anda. Coba lagi, atau pilih lokasi lewat peta / isi manual.');
     }
   }
