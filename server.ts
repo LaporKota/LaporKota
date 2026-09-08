@@ -50,12 +50,16 @@ const setupDb = async () => {
   await ensureColumn('bio TEXT');
   await ensureColumn('avatar_url TEXT');
   await ensureColumn('created_at INTEGER');
+  await ensureColumn('last_active_at INTEGER');
 
-  // Backfill created_at untuk user lama (dari deploy sebelum kolom ini ada)
-  // biar tidak NULL — dianggap "sudah lama terdaftar".
+  // Backfill created_at & last_active_at untuk user lama (dari deploy sebelum
+  // kolom ini ada) biar tidak NULL — dianggap "sudah lama terdaftar" / "belum pernah aktif".
   try {
     await db.execute(
       "UPDATE users SET created_at = 0 WHERE created_at IS NULL"
+    );
+    await db.execute(
+      "UPDATE users SET last_active_at = 0 WHERE last_active_at IS NULL"
     );
   } catch (e: any) {
     console.error('Backfill created_at warning:', e.message);
@@ -140,6 +144,15 @@ setupDb();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'lapor-kota-super-secret-key-2026';
 
+// Update kolom last_active_at secara "fire and forget" (tidak nge-block response).
+// Dipakai buat nentuin siapa yang lagi "online sekarang" di panel admin.
+function touchLastActive(userId: string) {
+  db.execute({
+    sql: 'UPDATE users SET last_active_at = ? WHERE id = ?',
+    args: [Date.now(), userId],
+  }).catch((e) => console.error('touchLastActive warning:', e.message));
+}
+
 // Middleware: verifikasi JWT, isi req.user kalau valid.
 // requireAuth() mewajibkan login, optionalAuth() cuma nambahin info user kalau ada token.
 function verifyToken(req: any): { id: string; email: string; role: string } | null {
@@ -159,6 +172,7 @@ function requireAuth(req: any, res: any, next: any) {
     return res.status(401).json({ error: 'Silakan login terlebih dahulu.' });
   }
   req.user = user;
+  touchLastActive(user.id);
   next();
 }
 
@@ -171,6 +185,7 @@ function requireAdmin(req: any, res: any, next: any) {
     return res.status(403).json({ error: 'Hanya petugas/admin yang dapat melakukan aksi ini.' });
   }
   req.user = user;
+  touchLastActive(user.id);
   next();
 }
 
@@ -296,8 +311,8 @@ async function startServer() {
       const userId = 'usr-' + Date.now().toString();
 
       await db.execute({
-        sql: 'INSERT INTO users (id, name, email, password, phone, domicile, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        args: [userId, name, email, hashedPassword, phone ?? null, domicile ?? null, 'user', Date.now()],
+        sql: 'INSERT INTO users (id, name, email, password, phone, domicile, role, created_at, last_active_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        args: [userId, name, email, hashedPassword, phone ?? null, domicile ?? null, 'user', Date.now(), Date.now()],
       });
 
       const token = jwt.sign({ id: userId, email, role: 'user' }, JWT_SECRET, { expiresIn: '7d' });
@@ -369,7 +384,8 @@ async function startServer() {
       }
 
       const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
-      
+      touchLastActive(user.id as string);
+
       res.json({ 
         token, 
         user: { 
@@ -402,13 +418,13 @@ async function startServer() {
     }
   });
 
-  // Daftar anggota (warga) untuk panel admin — dipisah baru daftar vs sudah lama,
-  // ditentukan dari created_at (7 hari terakhir dianggap "baru").
+  // Daftar anggota (warga) untuk panel admin, lengkap dengan waktu daftar &
+  // waktu aktif terakhir (dipakai buat nentuin siapa yang "online sekarang").
   app.get('/api/admin/users', requireAdmin, async (req: any, res) => {
     await setupDb();
     try {
       const result = await db.execute(
-        "SELECT id, name, email, phone, domicile, role, created_at FROM users WHERE role = 'user' ORDER BY created_at DESC"
+        "SELECT id, name, email, phone, domicile, role, created_at, last_active_at FROM users WHERE role = 'user' ORDER BY created_at DESC"
       );
       const users = result.rows.map((u: any) => ({
         id: u.id,
@@ -418,6 +434,7 @@ async function startServer() {
         domicile: u.domicile,
         role: u.role,
         createdAt: Number(u.created_at || 0),
+        lastActiveAt: Number(u.last_active_at || 0),
       }));
       res.json({ users });
     } catch (error) {
