@@ -59,25 +59,45 @@ export interface GeoPosition {
   lng: number;
 }
 
-// Bungkus Geolocation API browser (callback-based) jadi Promise supaya gampang dipakai dengan async/await,
-// plus pesan error dalam Bahasa Indonesia yang jelas untuk tiap kasus gagal.
-export function getCurrentPosition(): Promise<GeoPosition> {
+// Satu kali percobaan mentah ke Geolocation API browser.
+function requestPositionOnce(options: PositionOptions): Promise<GeoPosition> {
   return new Promise((resolve, reject) => {
-    if (!('geolocation' in navigator)) {
-      reject(new Error('Browser Anda tidak mendukung deteksi lokasi otomatis. Silakan pilih lokasi lewat peta atau isi manual.'));
-      return;
-    }
-
     navigator.geolocation.getCurrentPosition(
       (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      (err) => {
-        const message =
-          err.code === err.PERMISSION_DENIED
-            ? 'Akses lokasi ditolak. Aktifkan izin lokasi di browser untuk memakai fitur ini, atau pilih lokasi lewat peta.'
-            : 'Gagal mendapatkan lokasi Anda. Coba lagi, atau pilih lokasi lewat peta / isi manual.';
-        reject(new Error(message));
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      (err) => reject(err),
+      options
     );
   });
+}
+
+// Bungkus Geolocation API browser (callback-based) jadi Promise supaya gampang dipakai dengan async/await,
+// plus pesan error dalam Bahasa Indonesia yang jelas untuk tiap kasus gagal.
+//
+// Ada auto-retry SEKALI secara diam-diam kalau percobaan pertama gagal (kecuali izin memang ditolak).
+// Ini buat nutupin "cold start" GPS/WiFi-positioning: begitu user baru kasih izin lokasi, percobaan
+// pertama sering gagal/timeout karena browser belum sempat dapat sinyal, padahal detik berikutnya
+// biasanya langsung berhasil. Daripada user harus klik ulang manual, kita coba ulang sendiri dulu.
+export async function getCurrentPosition(): Promise<GeoPosition> {
+  if (!('geolocation' in navigator)) {
+    throw new Error('Browser Anda tidak mendukung deteksi lokasi otomatis. Silakan pilih lokasi lewat peta atau isi manual.');
+  }
+
+  const options: PositionOptions = { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 };
+
+  try {
+    return await requestPositionOnce(options);
+  } catch (err: any) {
+    // Izin ditolak itu pasti gagal lagi kalau dicoba ulang — langsung lempar error, jangan retry.
+    if (err?.code === err?.PERMISSION_DENIED) {
+      throw new Error('Akses lokasi ditolak. Aktifkan izin lokasi di browser untuk memakai fitur ini, atau pilih lokasi lewat peta.');
+    }
+
+    // Retry sekali setelah jeda singkat — kasih waktu GPS/WiFi-positioning "pemanasan"
+    await new Promise((r) => setTimeout(r, 800));
+    try {
+      return await requestPositionOnce(options);
+    } catch {
+      throw new Error('Gagal mendapatkan lokasi Anda. Coba lagi, atau pilih lokasi lewat peta / isi manual.');
+    }
+  }
 }
