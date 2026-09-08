@@ -53,8 +53,28 @@ const App: React.FC = () => {
   const [volunteerModalReport, setVolunteerModalReport] = useState<Report | null>(null);
 
   // ===================== NOTIFICATIONS STATE =====================
-  const [notifications, setNotifications] = useState<CivicNotification[]>(INITIAL_NOTIFICATIONS);
+  // Status "sudah dibaca" disimpan di localStorage biar gak balik ke awal tiap refresh.
+  const NOTIF_READ_STORAGE_KEY = 'lk_read_notification_ids';
+  const [notifications, setNotifications] = useState<CivicNotification[]>(() => {
+    try {
+      const raw = localStorage.getItem(NOTIF_READ_STORAGE_KEY);
+      const readIds: string[] = raw ? JSON.parse(raw) : [];
+      return INITIAL_NOTIFICATIONS.map((n) => (readIds.includes(n.id) ? { ...n, isRead: true } : n));
+    } catch {
+      return INITIAL_NOTIFICATIONS;
+    }
+  });
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+
+  // Setiap kali status baca berubah, simpan daftar id yang sudah dibaca ke localStorage
+  useEffect(() => {
+    try {
+      const readIds = notifications.filter((n) => n.isRead).map((n) => n.id);
+      localStorage.setItem(NOTIF_READ_STORAGE_KEY, JSON.stringify(readIds));
+    } catch {
+      // localStorage tidak tersedia (mode private/dsb) — abaikan, gak fatal
+    }
+  }, [notifications]);
 
   // ===================== MISC MODALS =====================
   const [isProfileOpen, setIsProfileOpen] = useState(false);
