@@ -95,7 +95,16 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const myReportsSet = new Set([...reportsCreated, ...reportsUpvoted]);
   const myReports = Array.from(myReportsSet).sort((a, b) => b.timestamp - a.timestamp);
 
-  // Sticker/badge civic — tema disesuaikan sama identitas LaporKota
+  const isAdmin = user.role === 'admin';
+
+  // Statistik khusus admin: kondisi platform secara keseluruhan (bukan aktivitas pribadi
+  // seperti warga biasa, karena admin biasanya gak bikin/dukung laporan sendiri).
+  const platformNewReports = reports.filter((r) => r.status === 'baru').length;
+  const platformInProgress = reports.filter((r) => r.status === 'diproses').length;
+  const platformResolved = reports.filter((r) => r.status === 'selesai').length;
+  const platformRecentReports = [...reports].sort((a, b) => b.timestamp - a.timestamp).slice(0, 8);
+
+  // Sticker/badge civic — tema disesuaikan sama identitas LaporKota (khusus warga biasa)
   const reputationScore = reportsCreated.length * 2 + reportsResolved.length * 3 + reportsUpvoted.length * 1;
   const reputationBadge = getReputationTier(reputationScore);
   const specialistBadge = getSpecialistBadge(reportsCreated);
@@ -114,7 +123,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[24px] text-slate-900">account_circle</span>
             <h3 className="font-headline text-lg font-semibold tracking-tight">
-              PROFIL WARGA &amp; REPUTASI CIVIC
+              {isAdmin ? 'PROFIL & RINGKASAN PLATFORM' : 'PROFIL WARGA & REPUTASI CIVIC'}
             </h3>
           </div>
           <button
@@ -150,7 +159,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                   <p className="font-body text-xs text-slate-900 mt-0.5 truncate">
                     Domisili: {user.domicile || 'Belum diisi'}
                   </p>
-                  {reportsResolved.length > 0 && (
+                  {!isAdmin && reportsResolved.length > 0 && (
                     <div className="inline-flex items-center gap-1 mt-1 bg-white border border-slate-200 px-2 py-0.5 font-label text-[10px] font-medium">
                       <Award size={12} /> SDG 11 Civic Champion
                     </div>
@@ -170,53 +179,113 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 <p className="font-body text-xs text-slate-500 italic -mt-2 px-1">"{user.bio}"</p>
               )}
 
-              {/* Sticker / Badge Civic */}
-              <div className="flex flex-wrap gap-2">
-                <span
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-slate-200 font-label text-[11px] font-bold shadow-sm ${reputationBadge.colorClass}`}
-                >
-                  <span className="text-sm leading-none">{reputationBadge.emoji}</span>
-                  {reputationBadge.label}
-                </span>
-                {specialistBadge && (
+              {/* Sticker / Badge Civic — reputasi warga, gak relevan buat admin */}
+              {!isAdmin && (
+                <div className="flex flex-wrap gap-2">
                   <span
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-slate-200 font-label text-[11px] font-bold shadow-sm ${specialistBadge.colorClass}`}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-slate-200 font-label text-[11px] font-bold shadow-sm ${reputationBadge.colorClass}`}
                   >
-                    <span className="text-sm leading-none">{specialistBadge.emoji}</span>
-                    {specialistBadge.label}
+                    <span className="text-sm leading-none">{reputationBadge.emoji}</span>
+                    {reputationBadge.label}
                   </span>
-                )}
-              </div>
+                  {specialistBadge && (
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-slate-200 font-label text-[11px] font-bold shadow-sm ${specialistBadge.colorClass}`}
+                    >
+                      <span className="text-sm leading-none">{specialistBadge.emoji}</span>
+                      {specialistBadge.label}
+                    </span>
+                  )}
+                </div>
+              )}
 
               {/* Stats Metrics */}
               <div className="grid grid-cols-3 gap-3">
-                <div className="bg-white border border-slate-200 rounded-lg p-3 text-center shadow-sm">
-                  <span className="font-label text-[10px] font-medium text-slate-500">Dibuat</span>
-                  <div className="font-headline text-2xl font-bold text-slate-900">
-                    {reportsCreated.length}
-                  </div>
-                </div>
-                <div className="bg-white border border-slate-200 rounded-lg p-3 text-center shadow-sm">
-                  <span className="font-label text-[10px] font-medium text-slate-500">Didukung</span>
-                  <div className="font-headline text-2xl font-bold text-primary-600">
-                    {reportsUpvoted.length}
-                  </div>
-                </div>
-                <div className="bg-white border border-slate-200 rounded-lg p-3 text-center shadow-sm">
-                  <span className="font-label text-[10px] font-medium text-slate-500">Tuntas</span>
-                  <div className="font-headline text-2xl font-bold text-green-600">
-                    {reportsResolved.length}
-                  </div>
-                </div>
+                {isAdmin ? (
+                  <>
+                    <div className="bg-white border border-slate-200 rounded-lg p-3 text-center shadow-sm">
+                      <span className="font-label text-[10px] font-medium text-slate-500">Laporan Baru</span>
+                      <div className="font-headline text-2xl font-bold text-rose-600">
+                        {platformNewReports}
+                      </div>
+                    </div>
+                    <div className="bg-white border border-slate-200 rounded-lg p-3 text-center shadow-sm">
+                      <span className="font-label text-[10px] font-medium text-slate-500">Diproses</span>
+                      <div className="font-headline text-2xl font-bold text-primary-600">
+                        {platformInProgress}
+                      </div>
+                    </div>
+                    <div className="bg-white border border-slate-200 rounded-lg p-3 text-center shadow-sm">
+                      <span className="font-label text-[10px] font-medium text-slate-500">Selesai</span>
+                      <div className="font-headline text-2xl font-bold text-green-600">
+                        {platformResolved}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="bg-white border border-slate-200 rounded-lg p-3 text-center shadow-sm">
+                      <span className="font-label text-[10px] font-medium text-slate-500">Dibuat</span>
+                      <div className="font-headline text-2xl font-bold text-slate-900">
+                        {reportsCreated.length}
+                      </div>
+                    </div>
+                    <div className="bg-white border border-slate-200 rounded-lg p-3 text-center shadow-sm">
+                      <span className="font-label text-[10px] font-medium text-slate-500">Didukung</span>
+                      <div className="font-headline text-2xl font-bold text-primary-600">
+                        {reportsUpvoted.length}
+                      </div>
+                    </div>
+                    <div className="bg-white border border-slate-200 rounded-lg p-3 text-center shadow-sm">
+                      <span className="font-label text-[10px] font-medium text-slate-500">Tuntas</span>
+                      <div className="font-headline text-2xl font-bold text-green-600">
+                        {reportsResolved.length}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* My Active Reports & Contributions */}
               <div className="flex flex-col gap-2">
                 <h5 className="font-headline text-sm font-semibold border-b border-slate-200 pb-1">
-                  LAPORAN &amp; DUKUNGAN TERKINI
+                  {isAdmin ? 'LAPORAN TERBARU DI PLATFORM' : 'LAPORAN & DUKUNGAN TERKINI'}
                 </h5>
                 <div className="flex flex-col gap-2 max-h-48 overflow-y-auto">
-                  {myReports.length === 0 ? (
+                  {isAdmin ? (
+                    platformRecentReports.length === 0 ? (
+                      <div className="text-center p-4 font-body text-sm text-slate-500 bg-white border border-slate-200 rounded-lg border-dashed">
+                        Belum ada laporan di platform.
+                      </div>
+                    ) : (
+                      platformRecentReports.map((r) => (
+                        <div
+                          key={r.id}
+                          onClick={() => {
+                            onSelectReport(r);
+                            onClose();
+                          }}
+                          className="p-2.5 border border-slate-200 rounded-lg bg-white hover:bg-rose-50 transition-colors cursor-pointer flex justify-between items-center text-xs"
+                        >
+                          <div className="truncate pr-2">
+                            <div className="font-label font-bold text-slate-900 truncate">{r.title}</div>
+                            <div className="font-body text-[11px] text-slate-500 truncate">{r.location}</div>
+                          </div>
+                          <span
+                            className={`shrink-0 px-2 py-0.5 font-bold uppercase text-[10px] border border-slate-200 ${
+                              r.status === 'baru'
+                                ? 'bg-primary-600 text-white'
+                                : r.status === 'diproses'
+                                ? 'bg-primary-600 text-white'
+                                : 'bg-green-600 text-white'
+                            }`}
+                          >
+                            {r.status}
+                          </span>
+                        </div>
+                      ))
+                    )
+                  ) : myReports.length === 0 ? (
                     <div className="text-center p-4 font-body text-sm text-slate-500 bg-white border border-slate-200 rounded-lg border-dashed">
                       Belum ada laporan atau dukungan saat ini.
                     </div>
