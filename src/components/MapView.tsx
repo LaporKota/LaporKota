@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { toast } from 'sonner';
 import { Report, ReportCategory, ReportStatus } from '../types';
 import { CITIES, PROVINCE_ORDER, getCitiesByProvince, findNearestCity } from '../data/cities';
 import { ReportLocationPrefill } from './CreateReportView';
@@ -189,7 +190,7 @@ export const MapView: React.FC<MapViewProps> = ({ reports, onSelectReport, onCre
     setIsLocating(false);
 
     if (!geo.isIndonesia) {
-      alert(
+      toast.error(
         'Titik yang dipilih berada di luar wilayah Indonesia. LaporKota hanya menerima laporan untuk lokasi di dalam Indonesia — silakan pilih titik lain di peta.'
       );
       return;
