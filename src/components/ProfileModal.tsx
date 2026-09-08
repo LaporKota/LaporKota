@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { Report, User } from '../types';
 import { Award } from 'lucide-react';
 import { getReputationTier, getSpecialistBadge } from '../utils/civicBadges';
+import { getChallengeProgress } from '../utils/challengeBadges';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -109,6 +110,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const reputationBadge = getReputationTier(reputationScore);
   const specialistBadge = getSpecialistBadge(reportsCreated);
 
+  // Challenge mingguan/2-mingguan/bulanan — khusus warga biasa
+  const challengeProgress = getChallengeProgress(reportsCreated);
+
   const getInitials = (name: string) => {
     const parts = name.trim().split(' ');
     if (parts.length > 1) return (parts[0][0] + parts[1][0]).toUpperCase();
@@ -196,6 +200,35 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       {specialistBadge.label}
                     </span>
                   )}
+                </div>
+              )}
+
+              {/* Challenge Mingguan/2-Mingguan/Bulanan — khusus warga biasa */}
+              {!isAdmin && (
+                <div className="flex flex-col gap-1.5 bg-white border border-slate-200 rounded-lg p-3 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <h5 className="font-headline text-xs font-bold uppercase text-slate-900">
+                      Challenge Warga
+                    </h5>
+                    <span className="font-label text-[10px] text-slate-500">
+                      Minggu ini: {challengeProgress.currentWeekCount}/{challengeProgress.currentWeekGoal} laporan
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-slate-200 font-label text-[11px] font-bold shadow-sm bg-yellow-400 text-slate-900">
+                      👑 {challengeProgress.crowns} Mahkota
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-slate-200 font-label text-[11px] font-bold shadow-sm bg-sky-500 text-white">
+                      🌟 {challengeProgress.superStars} Bintang Super Duper
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-slate-200 font-label text-[11px] font-bold shadow-sm bg-amber-400 text-slate-900">
+                      ⭐ {challengeProgress.weeklyStars} Bintang Kecil
+                    </span>
+                  </div>
+                  <p className="font-body text-[10px] text-slate-400">
+                    Lapor 3x dalam seminggu (Senin-Minggu) = 1 Bintang Kecil. 2 minggu berhasil berturut-turut = 1
+                    Bintang Super Duper. Berhasil sebulan penuh = 1 Mahkota.
+                  </p>
                 </div>
               )}
 
