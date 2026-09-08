@@ -296,8 +296,10 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSubmitReport = async (newReport: Partial<Report>) => {
-    if (!requireLogin('Silakan masuk untuk membuat laporan.')) return;
+  // Mengembalikan boolean sukses/gagal (bukan void) supaya CreateReportView tahu pasti apakah
+  // laporan benar-benar tersimpan di server sebelum menampilkan layar sukses & mengosongkan form.
+  const handleSubmitReport = async (newReport: Partial<Report>): Promise<boolean> => {
+    if (!requireLogin('Silakan masuk untuk membuat laporan.')) return false;
     try {
       const res = await fetch('/api/reports', {
         method: 'POST',
@@ -307,13 +309,15 @@ const App: React.FC = () => {
       const data = await res.json();
       if (!res.ok) {
         toast.error(data.error || 'Gagal mengirim laporan.');
-        return;
+        return false;
       }
       setReports((prev) => [data.report, ...prev]);
       toast.success('Laporan berhasil dikirim & dipublikasikan!');
+      return true;
     } catch (err) {
       console.error('Submit report error:', err);
       toast.error('Terjadi kesalahan saat mengirim laporan.');
+      return false;
     }
   };
 
