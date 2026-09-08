@@ -50,19 +50,18 @@ Hasil riset itu kami terjemahkan ke dalam rancangan desain di Figma sebelum masu
 - **Peta Interaktif** — menjelajahi laporan berdasarkan lokasi, memudahkan warga memahami persebaran masalah di kota.
 - **Upvote & Diskusi** — warga bisa mendukung laporan orang lain dan berdiskusi langsung di tiap laporan.
 - **Status Tracking** — memantau progres laporan dari masuk hingga selesai ditangani.
-- **IoT Eco-Pulse** — pemantauan telemetri energi dan sampah kota secara real-time dari sensor IoT.
-- **Prediksi Kualitas Udara (AI)** — forecasting kondisi kualitas udara kota menggunakan Gemini API, membantu warga dan pemerintah mengantisipasi risiko.
-- **Forum Inovasi Komunitas** — ruang diskusi bagi warga untuk mengusulkan dan membahas solusi permasalahan kota.
-- **Volunteer & Aksi Komunitas** — menghubungkan laporan dengan partisipasi nyata lewat kegiatan relawan.
-- **Dashboard Dampak** — visualisasi aktivitas dan dampak platform terhadap target SDG 11.
+- **Dashboard Relawan** — ruang kerja khusus bagi relawan untuk memantau daftar laporan yang membutuhkan aksi lapangan dan langsung terjun ke detail laporan yang ingin ditangani.
+- **Volunteer & Aksi Komunitas** — menjembatani laporan warga dengan aksi nyata lewat pendaftaran kegiatan gotong royong, lengkap dengan email konfirmasi otomatis begitu relawan mendaftar.
+- **Forum Inovasi Komunitas** — ruang diskusi terbuka bagi warga untuk mengusulkan, membahas, dan mengembangkan ide solusi bagi permasalahan kota bersama-sama.
+- **Dashboard Dampak & Open Data** — memvisualisasikan kontribusi platform terhadap capaian SDG 11, sekaligus membuka akses data laporan dalam format JSON/CSV untuk mendukung transparansi dan riset kebijakan publik.
+- **IoT Eco-Pulse (Simulasi)** — dashboard telemetri energi dan sampah kota berbasis data simulasi, dirancang mengikuti pola pembacaan sensor IoT sungguhan sebagai purwarupa konsep monitoring kota pintar yang siap dikembangkan ke perangkat fisik.
+- **Prediksi Kualitas Udara (Konsep AI)** — dashboard forecasting kondisi kualitas udara dengan tren dan rekomendasi yang disusun mengikuti pola output Gemini API, menggambarkan bagaimana warga dan pemerintah dapat mengantisipasi risiko polusi begitu integrasi API diaktifkan penuh.
 
-## Arsitektur Sistem & Alur Inovasi
+## Fitur Seru & Engagement
 
-**Prediksi Kualitas Udara (Gemini API)**
-Data parameter kualitas udara (PM2.5, AQI) diproses lewat Gemini API untuk membaca tren jangka pendek. Hasilnya diterjemahkan jadi status kualitas udara (mis. "Sedang", "Tidak Sehat") beserta rekomendasi aksi untuk warga, lalu ditampilkan di dashboard Eco-Pulse.
-
-**Telemetri IoT Eco-Pulse**
-Data dari sensor Smart Bins (tingkat keterisian sampah) dan panel Solar Rooftop (produksi energi) dikirim/disimulasikan secara berkala ke backend, disimpan di Turso (libSQL), lalu ditampilkan real-time di dashboard Eco-Pulse.
+- **Challenge Mingguan & Lencana Warga** — sistem gamifikasi berjenjang yang menjaga warga tetap aktif: konsisten melapor tiap minggu mengumpulkan Bintang, naik ke Bintang Super tiap dua minggu, hingga Mahkota bagi warga paling konsisten sebulan penuh. Dipadukan dengan lencana reputasi civic (dari "Bibit Warga" hingga "Pahlawan Kota") dan lencana spesialisasi kategori bagi warga yang fokus di satu isu tertentu.
+- **GreenEdu** — pusat edukasi berisi kurasi artikel seputar isu lingkungan dan praktik kota berkelanjutan, dirancang untuk menumbuhkan kesadaran ekologis warga secara berkelanjutan.
+- **Portfolio Inovasi Kota** — galeri studi kasus konsep smart city lintas domain (Smart Solar & Energy, IoT & Sensor Grid, AI Early Warning), lengkap dengan blueprint teknis yang dapat diunduh sebagai referensi pengembangan lebih lanjut.
 
 ## Teknologi yang Digunakan
 
@@ -72,7 +71,6 @@ Data dari sensor Smart Bins (tingkat keterisian sampah) dan panel Solar Rooftop 
 | Build tool | Vite |
 | Runtime | Bun |
 | Database | Turso (libSQL) |
-| AI | Gemini API (prediksi kualitas udara) |
 | Hosting/Deployment | Railway |
 
 ## Cara Instalasi
@@ -119,7 +117,6 @@ Untuk memudahkan juri menguji fitur, tersedia akun admin yang sudah dibuat otoma
 
 Akun admin ini dapat mengakses panel "Update Status (Mode Petugas)" pada setiap laporan, yang tidak tersedia untuk akun warga biasa. Untuk mencoba alur warga, silakan daftar akun baru langsung lewat halaman Daftar Akun Warga.
 
-Catatan: password default admin dapat diubah lewat environment variable `ADMIN_DEFAULT_PASSWORD` pada deployment production.
 
 ## Tantangan & Pembelajaran
 
